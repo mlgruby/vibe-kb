@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Optional
 from .config import KBConfig
 from .add.epub import extract_epub_to_markdown, get_epub_metadata
+from .add.youtube import extract_youtube_transcript
 from .utils.files import generate_filename, create_metadata
 
 
@@ -129,12 +130,13 @@ Things to explore further
 @cli.command()
 @click.argument("kb_name")
 @click.option("--epub", "epub_path", type=click.Path(exists=True, path_type=Path), help="ePub file path")
+@click.option("--youtube", "youtube_url", type=str, help="YouTube video URL")
 @click.option(
     "--vault-path",
     type=click.Path(exists=True, file_okay=False, path_type=Path),
     help="Obsidian vault path"
 )
-def add(kb_name: str, epub_path: Optional[Path], vault_path: Optional[Path]):
+def add(kb_name: str, epub_path: Optional[Path], youtube_url: Optional[str], vault_path: Optional[Path]):
     """Add source material to knowledge base."""
     if not vault_path:
         vault_path = Path.home() / "obsidian-vault"
@@ -146,6 +148,8 @@ def add(kb_name: str, epub_path: Optional[Path], vault_path: Optional[Path]):
 
     if epub_path:
         _add_epub(kb_dir, epub_path)
+    elif youtube_url:
+        _add_youtube(kb_dir, youtube_url)
     else:
         click.echo("Error: No source specified. Use --epub, --url, or --youtube")
         raise click.Abort()
@@ -192,6 +196,53 @@ def _add_epub(kb_dir: Path, epub_path: Path):
     click.echo(f"✓ Added book: {metadata['title']}")
     click.echo(f"  Location: {output_path}")
     click.echo(f"  Chapters: {result['chapter_count']}")
+
+
+def _add_youtube(kb_dir: Path, url: str):
+    """Add YouTube video to knowledge base."""
+    click.echo(f"Extracting transcript from: {url}")
+
+    try:
+        # Generate filename from URL first (will be updated after extraction)
+        from pathlib import Path as TempPath
+        import tempfile
+
+        # Create a temporary file for extraction
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as tmp_file:
+            temp_path = TempPath(tmp_file.name)
+
+        # Extract transcript
+        result = extract_youtube_transcript(url, temp_path)
+
+        # Generate filename from title
+        filename = generate_filename(result['title'])
+        output_path = kb_dir / "raw" / "videos" / filename
+
+        # Move temp file to final location
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        temp_path.rename(output_path)
+
+        # Create metadata
+        meta_path = output_path.with_suffix('.meta.json')
+        create_metadata(
+            meta_path,
+            source_url=url,
+            source_type='video',
+            title=result['title'],
+            author=result['channel'],
+            duration=result['duration']
+        )
+
+        click.echo(f"✓ Added video: {result['title']}")
+        click.echo(f"  Channel: {result['channel']}")
+        click.echo(f"  Location: {output_path}")
+
+    except ValueError as e:
+        click.echo(f"Error: {str(e)}")
+        raise click.Abort()
+    except Exception as e:
+        click.echo(f"Error: Unexpected error occurred: {str(e)}")
+        raise click.Abort()
 
 
 if __name__ == "__main__":
