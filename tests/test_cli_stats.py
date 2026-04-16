@@ -1,4 +1,5 @@
 """Tests for kb stats command."""
+
 from click.testing import CliRunner
 from vibe_kb.cli import cli
 import json
@@ -9,7 +10,9 @@ def test_stats_basic(tmp_path):
     runner = CliRunner()
 
     # Create KB first
-    result = runner.invoke(cli, ["create", "test-kb", "--vault-path", str(tmp_path), "--topic", "AI Research"])
+    result = runner.invoke(
+        cli, ["create", "test-kb", "--vault-path", str(tmp_path), "--topic", "AI Research"]
+    )
     assert result.exit_code == 0
 
     # Run stats
@@ -37,9 +40,9 @@ def test_stats_with_sources(tmp_path):
     kb_dir = tmp_path / "knowledge-bases" / "test-kb"
 
     # Add some source files
-    (kb_dir / "raw" / "books" / "book1.md").write_text("Book content", encoding='utf-8')
+    (kb_dir / "raw" / "books" / "book1.md").write_text("Book content", encoding="utf-8")
     (kb_dir / "raw" / "papers" / "paper1.pdf").write_bytes(b"PDF content")
-    (kb_dir / "raw" / "articles" / "article1.md").write_text("Article", encoding='utf-8')
+    (kb_dir / "raw" / "articles" / "article1.md").write_text("Article", encoding="utf-8")
 
     # Run stats
     result = runner.invoke(cli, ["stats", "test-kb", "--vault-path", str(tmp_path)])
@@ -60,8 +63,10 @@ def test_stats_with_wiki_articles(tmp_path):
     wiki_dir = kb_dir / "wiki"
 
     # Add wiki articles
-    (wiki_dir / "concepts" / "concept1.md").write_text("This is a concept article.", encoding='utf-8')
-    (wiki_dir / "topics" / "topic1.md").write_text("This is a topic article.", encoding='utf-8')
+    (wiki_dir / "concepts" / "concept1.md").write_text(
+        "This is a concept article.", encoding="utf-8"
+    )
+    (wiki_dir / "topics" / "topic1.md").write_text("This is a topic article.", encoding="utf-8")
 
     # Run stats
     result = runner.invoke(cli, ["stats", "test-kb", "--vault-path", str(tmp_path)])
@@ -83,8 +88,8 @@ def test_stats_skip_hidden_files(tmp_path):
     wiki_dir = kb_dir / "wiki"
 
     # Add visible and hidden files
-    (wiki_dir / "visible.md").write_text("Visible content", encoding='utf-8')
-    (wiki_dir / ".hidden.md").write_text("Hidden content", encoding='utf-8')
+    (wiki_dir / "visible.md").write_text("Visible content", encoding="utf-8")
+    (wiki_dir / ".hidden.md").write_text("Hidden content", encoding="utf-8")
 
     # Run stats
     result = runner.invoke(cli, ["stats", "test-kb", "--vault-path", str(tmp_path)])
@@ -106,8 +111,8 @@ def test_stats_skip_template_files(tmp_path):
     wiki_dir = kb_dir / "wiki"
 
     # Add regular and template files
-    (wiki_dir / "article.md").write_text("Article content", encoding='utf-8')
-    (wiki_dir / "_template.md").write_text("Template content", encoding='utf-8')
+    (wiki_dir / "article.md").write_text("Article content", encoding="utf-8")
+    (wiki_dir / "_template.md").write_text("Template content", encoding="utf-8")
 
     # Run stats
     result = runner.invoke(cli, ["stats", "test-kb", "--vault-path", str(tmp_path)])
@@ -180,7 +185,7 @@ def test_stats_word_count_formatting(tmp_path):
 
     # Create a file with many words
     words = " ".join([f"word{i}" for i in range(1500)])
-    (wiki_dir / "large.md").write_text(words, encoding='utf-8')
+    (wiki_dir / "large.md").write_text(words, encoding="utf-8")
 
     # Run stats
     result = runner.invoke(cli, ["stats", "test-kb", "--vault-path", str(tmp_path)])
@@ -202,8 +207,8 @@ def test_stats_handles_binary_files(tmp_path):
     wiki_dir = kb_dir / "wiki"
 
     # Add valid file and binary file with .md extension
-    (wiki_dir / "valid.md").write_text("Valid content", encoding='utf-8')
-    (wiki_dir / "binary.md").write_bytes(b'\x80\x81\x82\x83')
+    (wiki_dir / "valid.md").write_text("Valid content", encoding="utf-8")
+    (wiki_dir / "binary.md").write_bytes(b"\x80\x81\x82\x83")
 
     # Run stats - should succeed, skipping binary file
     result = runner.invoke(cli, ["stats", "test-kb", "--vault-path", str(tmp_path)])
@@ -240,15 +245,15 @@ def test_stats_recursive_counting(tmp_path):
     kb_dir = tmp_path / "knowledge-bases" / "test-kb"
 
     # Add sources in different subdirectories
-    (kb_dir / "raw" / "books" / "book1.md").write_text("Book", encoding='utf-8')
+    (kb_dir / "raw" / "books" / "book1.md").write_text("Book", encoding="utf-8")
     (kb_dir / "raw" / "books" / "subdir").mkdir(parents=True, exist_ok=True)
-    (kb_dir / "raw" / "books" / "subdir" / "book2.md").write_text("Book2", encoding='utf-8')
+    (kb_dir / "raw" / "books" / "subdir" / "book2.md").write_text("Book2", encoding="utf-8")
     (kb_dir / "raw" / "papers" / "paper1.pdf").write_bytes(b"PDF")
 
     # Add wiki articles in subdirectories
-    (kb_dir / "wiki" / "concepts" / "concept1.md").write_text("Concept", encoding='utf-8')
+    (kb_dir / "wiki" / "concepts" / "concept1.md").write_text("Concept", encoding="utf-8")
     (kb_dir / "wiki" / "topics" / "subtopic").mkdir(parents=True, exist_ok=True)
-    (kb_dir / "wiki" / "topics" / "subtopic" / "topic1.md").write_text("Topic", encoding='utf-8')
+    (kb_dir / "wiki" / "topics" / "subtopic" / "topic1.md").write_text("Topic", encoding="utf-8")
 
     # Run stats
     result = runner.invoke(cli, ["stats", "test-kb", "--vault-path", str(tmp_path)])
@@ -271,12 +276,12 @@ def test_stats_excludes_symlinks(tmp_path):
     wiki_dir = kb_dir / "wiki"
 
     # Create a regular file
-    (wiki_dir / "normal.md").write_text("Normal file", encoding='utf-8')
+    (wiki_dir / "normal.md").write_text("Normal file", encoding="utf-8")
 
     # Create a file outside wiki
     external_dir = tmp_path / "external"
     external_dir.mkdir()
-    (external_dir / "external.md").write_text("External content", encoding='utf-8')
+    (external_dir / "external.md").write_text("External content", encoding="utf-8")
 
     # Create symlink to external file
     symlink_path = wiki_dir / "link.md"
@@ -302,8 +307,8 @@ def test_stats_empty_files(tmp_path):
     wiki_dir = kb_dir / "wiki"
 
     # Create empty and non-empty files
-    (wiki_dir / "empty.md").write_text("", encoding='utf-8')
-    (wiki_dir / "content.md").write_text("Some content here", encoding='utf-8')
+    (wiki_dir / "empty.md").write_text("", encoding="utf-8")
+    (wiki_dir / "content.md").write_text("Some content here", encoding="utf-8")
 
     # Run stats
     result = runner.invoke(cli, ["stats", "test-kb", "--vault-path", str(tmp_path)])
@@ -325,6 +330,7 @@ def test_stats_missing_raw_directory(tmp_path):
 
     # Remove raw directory
     import shutil
+
     shutil.rmtree(kb_dir / "raw")
 
     # Run stats - should handle gracefully
@@ -346,6 +352,7 @@ def test_stats_missing_wiki_directory(tmp_path):
 
     # Remove wiki directory
     import shutil
+
     shutil.rmtree(kb_dir / "wiki")
 
     # Run stats - should handle gracefully
@@ -367,10 +374,12 @@ def test_stats_files_in_templates_directory(tmp_path):
     wiki_dir = kb_dir / "wiki"
 
     # Add a file in .templates/ directory
-    (wiki_dir / ".templates" / "custom-template.md").write_text("Template content", encoding='utf-8')
+    (wiki_dir / ".templates" / "custom-template.md").write_text(
+        "Template content", encoding="utf-8"
+    )
 
     # Add a regular article
-    (wiki_dir / "article.md").write_text("Article content", encoding='utf-8')
+    (wiki_dir / "article.md").write_text("Article content", encoding="utf-8")
 
     # Run stats
     result = runner.invoke(cli, ["stats", "test-kb", "--vault-path", str(tmp_path)])
@@ -393,10 +402,10 @@ def test_stats_files_in_underscore_directory(tmp_path):
 
     # Create a directory starting with _
     (wiki_dir / "_archived").mkdir()
-    (wiki_dir / "_archived" / "old-article.md").write_text("Archived content", encoding='utf-8')
+    (wiki_dir / "_archived" / "old-article.md").write_text("Archived content", encoding="utf-8")
 
     # Add a regular article
-    (wiki_dir / "current.md").write_text("Current content", encoding='utf-8')
+    (wiki_dir / "current.md").write_text("Current content", encoding="utf-8")
 
     # Run stats
     result = runner.invoke(cli, ["stats", "test-kb", "--vault-path", str(tmp_path)])

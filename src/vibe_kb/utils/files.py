@@ -1,4 +1,5 @@
 """File utilities for knowledge base operations."""
+
 import json
 import re
 from datetime import date, datetime
@@ -23,13 +24,13 @@ def generate_filename(title: str, extension: str = ".md") -> str:
     slug = title.lower().replace(" ", "-")
 
     # Remove special characters except hyphens
-    slug = re.sub(r'[^a-z0-9-]', '', slug)
+    slug = re.sub(r"[^a-z0-9-]", "", slug)
 
     # Remove multiple consecutive hyphens
-    slug = re.sub(r'-+', '-', slug)
+    slug = re.sub(r"-+", "-", slug)
 
     # Remove leading/trailing hyphens
-    slug = slug.strip('-')
+    slug = slug.strip("-")
 
     if not slug:
         raise ValueError("Title must contain at least one alphanumeric character")
@@ -44,7 +45,7 @@ def create_metadata(
     source_type: str,
     title: str,
     author: Optional[str] = None,
-    **kwargs
+    **kwargs,
 ) -> None:
     """Create .meta.json metadata file for a source.
 
@@ -69,4 +70,4 @@ def create_metadata(
     metadata.update(kwargs)
 
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps(metadata, indent=2), encoding='utf-8')
+    target.write_text(json.dumps(metadata, indent=2), encoding="utf-8")

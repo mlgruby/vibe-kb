@@ -1,4 +1,5 @@
 """ePub source ingestion."""
+
 import ebooklib
 from ebooklib import epub
 from bs4 import BeautifulSoup
@@ -27,10 +28,7 @@ def _safe_extract_metadata(book: epub.EpubBook, namespace: str, field: str) -> s
     return "Unknown"
 
 
-def extract_epub_to_markdown(
-    epub_path: Path,
-    output_path: Path
-) -> Dict[str, Any]:
+def extract_epub_to_markdown(epub_path: Path, output_path: Path) -> Dict[str, Any]:
     """Extract ePub content to markdown.
 
     Args:
@@ -47,11 +45,13 @@ def extract_epub_to_markdown(
     try:
         book = epub.read_epub(str(epub_path))
     except Exception as e:
-        raise ValueError(f"Failed to read ePub file '{epub_path.name}': {str(e)}. The file may be corrupt or invalid.")
+        raise ValueError(
+            f"Failed to read ePub file '{epub_path.name}': {str(e)}. The file may be corrupt or invalid."
+        )
 
     # CRITICAL FIX #2: Safe metadata access with fallback
-    title = _safe_extract_metadata(book, 'DC', 'title')
-    author = _safe_extract_metadata(book, 'DC', 'creator')
+    title = _safe_extract_metadata(book, "DC", "title")
+    author = _safe_extract_metadata(book, "DC", "creator")
 
     # Extract chapters
     chapters = []
@@ -59,23 +59,22 @@ def extract_epub_to_markdown(
         if item.get_type() == ebooklib.ITEM_DOCUMENT:
             content = item.get_content()
             # IMPORTANT FIX #7: Specify HTML parser (html.parser is built-in and handles XHTML well)
-            soup = BeautifulSoup(content, 'html.parser')
+            soup = BeautifulSoup(content, "html.parser")
 
             # Extract text
             text = soup.get_text()
             # Clean up whitespace
-            text = re.sub(r'\n\s*\n', '\n\n', text)
+            text = re.sub(r"\n\s*\n", "\n\n", text)
             text = text.strip()
 
             if text:  # Only add non-empty chapters
-                chapters.append({
-                    'title': item.get_name(),
-                    'content': text
-                })
+                chapters.append({"title": item.get_name(), "content": text})
 
     # CRITICAL FIX #3: Validate that chapters were extracted
     if not chapters:
-        raise ValueError(f"No content could be extracted from '{epub_path.name}'. The ePub may be empty or have an unsupported format.")
+        raise ValueError(
+            f"No content could be extracted from '{epub_path.name}'. The ePub may be empty or have an unsupported format."
+        )
 
     # Write markdown
     markdown = f"# {title}\n\n"
@@ -87,13 +86,9 @@ def extract_epub_to_markdown(
         markdown += f"{chapter['content']}\n\n"
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(markdown, encoding='utf-8')
+    output_path.write_text(markdown, encoding="utf-8")
 
-    return {
-        'title': title,
-        'author': author,
-        'chapter_count': len(chapters)
-    }
+    return {"title": title, "author": author, "chapter_count": len(chapters)}
 
 
 def get_epub_metadata(epub_path: Path) -> Dict[str, Any]:
@@ -112,14 +107,12 @@ def get_epub_metadata(epub_path: Path) -> Dict[str, Any]:
     try:
         book = epub.read_epub(str(epub_path))
     except Exception as e:
-        raise ValueError(f"Failed to read ePub file '{epub_path.name}': {str(e)}. The file may be corrupt or invalid.")
+        raise ValueError(
+            f"Failed to read ePub file '{epub_path.name}': {str(e)}. The file may be corrupt or invalid."
+        )
 
     # IMPORTANT FIX #8: Use shared helper function for metadata extraction
-    title = _safe_extract_metadata(book, 'DC', 'title')
-    author = _safe_extract_metadata(book, 'DC', 'creator')
+    title = _safe_extract_metadata(book, "DC", "title")
+    author = _safe_extract_metadata(book, "DC", "creator")
 
-    return {
-        'title': title,
-        'author': author,
-        'source_type': 'book'
-    }
+    return {"title": title, "author": author, "source_type": "book"}

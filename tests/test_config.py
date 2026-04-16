@@ -1,4 +1,5 @@
 """Tests for KB configuration management."""
+
 import json
 from vibe_kb.config import KBConfig
 
@@ -26,7 +27,7 @@ def test_load_existing_config(tmp_path):
         "created": "2026-04-15T10:00:00",
         "last_compile": None,
         "source_count": 0,
-        "article_count": 0
+        "article_count": 0,
     }
     (kb_dir / ".kbconfig").write_text(json.dumps(config_data, indent=2))
 

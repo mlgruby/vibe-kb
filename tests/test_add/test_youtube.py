@@ -1,4 +1,5 @@
 """Tests for YouTube transcript extraction."""
+
 import pytest
 from unittest.mock import patch, MagicMock
 from click.testing import CliRunner
@@ -74,76 +75,72 @@ def test_extract_youtube_transcript_basic(tmp_path):
     output_path = tmp_path / "video.md"
 
     # Mock yt_dlp
-    with patch('vibe_kb.add.youtube.yt_dlp.YoutubeDL') as mock_ydl_class:
+    with patch("vibe_kb.add.youtube.yt_dlp.YoutubeDL") as mock_ydl_class:
         # Create mock objects
         mock_ydl = MagicMock()
         mock_urlopen_obj = MagicMock()
-        mock_urlopen_obj.read.return_value = SAMPLE_VTT.encode('utf-8')
+        mock_urlopen_obj.read.return_value = SAMPLE_VTT.encode("utf-8")
 
         # Set up the info dict
         mock_info = {
-            'title': 'Test Video',
-            'channel': 'Test Channel',
-            'duration': 125,  # 2:05
-            'upload_date': '20240101',
-            'description': 'Test description',
-            'subtitles': {
-                'en': [{'url': 'http://example.com/subs.vtt'}]
-            }
+            "title": "Test Video",
+            "channel": "Test Channel",
+            "duration": 125,  # 2:05
+            "upload_date": "20240101",
+            "description": "Test description",
+            "subtitles": {"en": [{"url": "http://example.com/subs.vtt"}]},
         }
 
         mock_ydl.extract_info.return_value = mock_info
         mock_ydl.urlopen.return_value = mock_urlopen_obj
         mock_ydl_class.return_value.__enter__.return_value = mock_ydl
 
-        result = extract_youtube_transcript('https://www.youtube.com/watch?v=test123', output_path)
+        result = extract_youtube_transcript("https://www.youtube.com/watch?v=test123", output_path)
 
         # Check return value
-        assert result['title'] == 'Test Video'
-        assert result['channel'] == 'Test Channel'
-        assert result['duration'] == 125
-        assert result['url'] == 'https://www.youtube.com/watch?v=test123'
+        assert result["title"] == "Test Video"
+        assert result["channel"] == "Test Channel"
+        assert result["duration"] == 125
+        assert result["url"] == "https://www.youtube.com/watch?v=test123"
 
         # Check output file
         assert output_path.exists()
         content = output_path.read_text()
-        assert '# Test Video' in content
-        assert '**Channel:** Test Channel' in content
-        assert '**Duration:** 2:05' in content
-        assert '**Upload Date:** 20240101' in content
-        assert 'Test description' in content
-        assert 'Hello everyone' in content
+        assert "# Test Video" in content
+        assert "**Channel:** Test Channel" in content
+        assert "**Duration:** 2:05" in content
+        assert "**Upload Date:** 20240101" in content
+        assert "Test description" in content
+        assert "Hello everyone" in content
 
 
 def test_extract_youtube_transcript_with_automatic_captions(tmp_path):
     """Test YouTube extraction with automatic captions fallback."""
     output_path = tmp_path / "video.md"
 
-    with patch('vibe_kb.add.youtube.yt_dlp.YoutubeDL') as mock_ydl_class:
+    with patch("vibe_kb.add.youtube.yt_dlp.YoutubeDL") as mock_ydl_class:
         mock_ydl = MagicMock()
         mock_urlopen_obj = MagicMock()
-        mock_urlopen_obj.read.return_value = SAMPLE_VTT.encode('utf-8')
+        mock_urlopen_obj.read.return_value = SAMPLE_VTT.encode("utf-8")
 
         # No manual subtitles, only automatic captions
         mock_info = {
-            'title': 'Auto Caption Video',
-            'channel': 'Test Channel',
-            'duration': 60,
-            'upload_date': '20240101',
-            'description': 'Test',
-            'subtitles': {},  # No manual subtitles
-            'automatic_captions': {
-                'en': [{'url': 'http://example.com/auto.vtt'}]
-            }
+            "title": "Auto Caption Video",
+            "channel": "Test Channel",
+            "duration": 60,
+            "upload_date": "20240101",
+            "description": "Test",
+            "subtitles": {},  # No manual subtitles
+            "automatic_captions": {"en": [{"url": "http://example.com/auto.vtt"}]},
         }
 
         mock_ydl.extract_info.return_value = mock_info
         mock_ydl.urlopen.return_value = mock_urlopen_obj
         mock_ydl_class.return_value.__enter__.return_value = mock_ydl
 
-        result = extract_youtube_transcript('https://www.youtube.com/watch?v=test456', output_path)
+        result = extract_youtube_transcript("https://www.youtube.com/watch?v=test456", output_path)
 
-        assert result['title'] == 'Auto Caption Video'
+        assert result["title"] == "Auto Caption Video"
         assert output_path.exists()
 
 
@@ -151,25 +148,25 @@ def test_extract_youtube_transcript_no_subtitles(tmp_path):
     """Test handling of video with no subtitles."""
     output_path = tmp_path / "video.md"
 
-    with patch('vibe_kb.add.youtube.yt_dlp.YoutubeDL') as mock_ydl_class:
+    with patch("vibe_kb.add.youtube.yt_dlp.YoutubeDL") as mock_ydl_class:
         mock_ydl = MagicMock()
 
         # No subtitles at all
         mock_info = {
-            'title': 'No Subs Video',
-            'channel': 'Test Channel',
-            'duration': 60,
-            'upload_date': '20240101',
-            'description': 'Test',
-            'subtitles': {},
-            'automatic_captions': {}
+            "title": "No Subs Video",
+            "channel": "Test Channel",
+            "duration": 60,
+            "upload_date": "20240101",
+            "description": "Test",
+            "subtitles": {},
+            "automatic_captions": {},
         }
 
         mock_ydl.extract_info.return_value = mock_info
         mock_ydl_class.return_value.__enter__.return_value = mock_ydl
 
         with pytest.raises(ValueError) as exc_info:
-            extract_youtube_transcript('https://www.youtube.com/watch?v=nosubs', output_path)
+            extract_youtube_transcript("https://www.youtube.com/watch?v=nosubs", output_path)
 
         assert "no english subtitles available" in str(exc_info.value).lower()
 
@@ -178,13 +175,13 @@ def test_extract_youtube_transcript_invalid_url(tmp_path):
     """Test handling of invalid YouTube URL."""
     output_path = tmp_path / "video.md"
 
-    with patch('vibe_kb.add.youtube.yt_dlp.YoutubeDL') as mock_ydl_class:
+    with patch("vibe_kb.add.youtube.yt_dlp.YoutubeDL") as mock_ydl_class:
         mock_ydl = MagicMock()
         mock_ydl.extract_info.side_effect = Exception("Invalid URL")
         mock_ydl_class.return_value.__enter__.return_value = mock_ydl
 
         with pytest.raises(ValueError) as exc_info:
-            extract_youtube_transcript('https://invalid-url.com', output_path)
+            extract_youtube_transcript("https://invalid-url.com", output_path)
 
         assert "failed to extract" in str(exc_info.value).lower()
 
@@ -193,13 +190,13 @@ def test_extract_youtube_transcript_network_error(tmp_path):
     """Test handling of network errors."""
     output_path = tmp_path / "video.md"
 
-    with patch('vibe_kb.add.youtube.yt_dlp.YoutubeDL') as mock_ydl_class:
+    with patch("vibe_kb.add.youtube.yt_dlp.YoutubeDL") as mock_ydl_class:
         mock_ydl = MagicMock()
         mock_ydl.extract_info.side_effect = Exception("Network error")
         mock_ydl_class.return_value.__enter__.return_value = mock_ydl
 
         with pytest.raises(ValueError) as exc_info:
-            extract_youtube_transcript('https://www.youtube.com/watch?v=test', output_path)
+            extract_youtube_transcript("https://www.youtube.com/watch?v=test", output_path)
 
         error_msg = str(exc_info.value).lower()
         assert "failed" in error_msg or "error" in error_msg
@@ -214,20 +211,18 @@ def test_cli_add_youtube_integration(tmp_path):
     assert result.exit_code == 0
 
     # Mock YouTube extraction
-    with patch('vibe_kb.add.youtube.yt_dlp.YoutubeDL') as mock_ydl_class:
+    with patch("vibe_kb.add.youtube.yt_dlp.YoutubeDL") as mock_ydl_class:
         mock_ydl = MagicMock()
         mock_urlopen_obj = MagicMock()
-        mock_urlopen_obj.read.return_value = SAMPLE_VTT.encode('utf-8')
+        mock_urlopen_obj.read.return_value = SAMPLE_VTT.encode("utf-8")
 
         mock_info = {
-            'title': 'CLI Test Video',
-            'channel': 'CLI Test Channel',
-            'duration': 300,
-            'upload_date': '20240101',
-            'description': 'CLI test description',
-            'subtitles': {
-                'en': [{'url': 'http://example.com/subs.vtt'}]
-            }
+            "title": "CLI Test Video",
+            "channel": "CLI Test Channel",
+            "duration": 300,
+            "upload_date": "20240101",
+            "description": "CLI test description",
+            "subtitles": {"en": [{"url": "http://example.com/subs.vtt"}]},
         }
 
         mock_ydl.extract_info.return_value = mock_info
@@ -235,11 +230,17 @@ def test_cli_add_youtube_integration(tmp_path):
         mock_ydl_class.return_value.__enter__.return_value = mock_ydl
 
         # Add YouTube video to KB
-        result = runner.invoke(cli, [
-            "add", "test-kb",
-            "--youtube", "https://www.youtube.com/watch?v=test123",
-            "--vault-path", str(tmp_path)
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "add",
+                "test-kb",
+                "--youtube",
+                "https://www.youtube.com/watch?v=test123",
+                "--vault-path",
+                str(tmp_path),
+            ],
+        )
 
         assert result.exit_code == 0
         assert "Added video: CLI Test Video" in result.output
@@ -267,27 +268,33 @@ def test_cli_add_youtube_no_subtitles(tmp_path):
     result = runner.invoke(cli, ["create", "test-kb", "--vault-path", str(tmp_path)])
     assert result.exit_code == 0
 
-    with patch('vibe_kb.add.youtube.yt_dlp.YoutubeDL') as mock_ydl_class:
+    with patch("vibe_kb.add.youtube.yt_dlp.YoutubeDL") as mock_ydl_class:
         mock_ydl = MagicMock()
 
         mock_info = {
-            'title': 'No Subs',
-            'channel': 'Test',
-            'duration': 60,
-            'upload_date': '20240101',
-            'description': 'Test',
-            'subtitles': {},
-            'automatic_captions': {}
+            "title": "No Subs",
+            "channel": "Test",
+            "duration": 60,
+            "upload_date": "20240101",
+            "description": "Test",
+            "subtitles": {},
+            "automatic_captions": {},
         }
 
         mock_ydl.extract_info.return_value = mock_info
         mock_ydl_class.return_value.__enter__.return_value = mock_ydl
 
-        result = runner.invoke(cli, [
-            "add", "test-kb",
-            "--youtube", "https://www.youtube.com/watch?v=nosubs",
-            "--vault-path", str(tmp_path)
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "add",
+                "test-kb",
+                "--youtube",
+                "https://www.youtube.com/watch?v=nosubs",
+                "--vault-path",
+                str(tmp_path),
+            ],
+        )
 
         assert result.exit_code != 0
         assert "error" in result.output.lower()
@@ -297,18 +304,18 @@ def test_extract_youtube_subtitle_download_failure(tmp_path):
     """Test handling subtitle download failure after info extraction succeeds."""
     output_path = tmp_path / "video.md"
 
-    with patch('vibe_kb.add.youtube.yt_dlp.YoutubeDL') as mock_ydl_class:
+    with patch("vibe_kb.add.youtube.yt_dlp.YoutubeDL") as mock_ydl_class:
         mock_ydl = MagicMock()
 
         # Info extraction succeeds
         mock_info = {
-            'title': 'Test Video',
-            'channel': 'Test Channel',
-            'duration': 300,
-            'upload_date': '20240101',
-            'description': 'Test description',
-            'subtitles': {'en': [{'url': 'http://example.com/subtitle.vtt'}]},
-            'automatic_captions': {}
+            "title": "Test Video",
+            "channel": "Test Channel",
+            "duration": 300,
+            "upload_date": "20240101",
+            "description": "Test description",
+            "subtitles": {"en": [{"url": "http://example.com/subtitle.vtt"}]},
+            "automatic_captions": {},
         }
 
         mock_ydl.extract_info.return_value = mock_info
@@ -331,11 +338,9 @@ def test_cli_add_youtube_invalid_url(tmp_path):
     assert result.exit_code == 0
 
     # Try to add with invalid URL
-    result = runner.invoke(cli, [
-        "add", "test-kb",
-        "--youtube", "not-a-url",
-        "--vault-path", str(tmp_path)
-    ])
+    result = runner.invoke(
+        cli, ["add", "test-kb", "--youtube", "not-a-url", "--vault-path", str(tmp_path)]
+    )
 
     assert result.exit_code != 0
     assert "invalid" in result.output.lower()
@@ -350,10 +355,7 @@ def test_cli_add_no_source_specified(tmp_path):
     assert result.exit_code == 0
 
     # Try to add without specifying source
-    result = runner.invoke(cli, [
-        "add", "test-kb",
-        "--vault-path", str(tmp_path)
-    ])
+    result = runner.invoke(cli, ["add", "test-kb", "--vault-path", str(tmp_path)])
 
     assert result.exit_code != 0
     assert "no source specified" in result.output.lower()
@@ -366,11 +368,17 @@ def test_cli_add_youtube_rejects_non_youtube_https(tmp_path):
     result = runner.invoke(cli, ["create", "test-kb", "--vault-path", str(tmp_path)])
     assert result.exit_code == 0
 
-    result = runner.invoke(cli, [
-        "add", "test-kb",
-        "--youtube", "https://example.com/watch?v=dQw4w9WgXcQ",
-        "--vault-path", str(tmp_path)
-    ])
+    result = runner.invoke(
+        cli,
+        [
+            "add",
+            "test-kb",
+            "--youtube",
+            "https://example.com/watch?v=dQw4w9WgXcQ",
+            "--vault-path",
+            str(tmp_path),
+        ],
+    )
 
     assert result.exit_code != 0
     assert "invalid" in result.output.lower()
@@ -390,6 +398,7 @@ def test_cli_add_youtube_duplicate_preserves_existing(tmp_path):
 
     # Pre-plant an existing source with the same title/date
     from datetime import date
+
     existing_filename = f"{date.today().isoformat()}-existing-video.md"
     existing_md = videos_dir / existing_filename
     existing_meta = videos_dir / existing_filename.replace(".md", ".meta.json")
@@ -397,18 +406,24 @@ def test_cli_add_youtube_duplicate_preserves_existing(tmp_path):
     existing_meta.write_text('{"title": "Existing Video"}', encoding="utf-8")
 
     mock_result = {
-        'title': 'Existing Video',
-        'channel': 'Test Channel',
-        'duration': 300,
-        'url': 'https://youtube.com/watch?v=test',
+        "title": "Existing Video",
+        "channel": "Test Channel",
+        "duration": 300,
+        "url": "https://youtube.com/watch?v=test",
     }
 
-    with patch('vibe_kb.cli.extract_youtube_transcript', return_value=mock_result):
-        result = runner.invoke(cli, [
-            "add", "test-kb",
-            "--youtube", "https://youtube.com/watch?v=test",
-            "--vault-path", str(tmp_path)
-        ])
+    with patch("vibe_kb.cli.extract_youtube_transcript", return_value=mock_result):
+        result = runner.invoke(
+            cli,
+            [
+                "add",
+                "test-kb",
+                "--youtube",
+                "https://youtube.com/watch?v=test",
+                "--vault-path",
+                str(tmp_path),
+            ],
+        )
 
     assert result.exit_code != 0
     assert "already exists" in result.output

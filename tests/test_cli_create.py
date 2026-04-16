@@ -1,4 +1,5 @@
 """Tests for kb create command."""
+
 from click.testing import CliRunner
 from vibe_kb.cli import cli
 import json
@@ -68,8 +69,7 @@ def test_kb_create_config(tmp_path):
     kb_dir = tmp_path / "knowledge-bases" / "test-kb"
 
     result = runner.invoke(
-        cli,
-        ["create", "test-kb", "--vault-path", str(tmp_path), "--topic", "AI Research"]
+        cli, ["create", "test-kb", "--vault-path", str(tmp_path), "--topic", "AI Research"]
     )
 
     assert result.exit_code == 0

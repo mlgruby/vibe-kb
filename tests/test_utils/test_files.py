@@ -1,4 +1,5 @@
 """Tests for file utilities."""
+
 import json
 from datetime import date
 import pytest
@@ -32,7 +33,7 @@ def test_create_metadata(tmp_path):
         source_url="https://example.com/article",
         source_type="article",
         title="Test Article",
-        author="John Doe"
+        author="John Doe",
     )
 
     assert target.exists()

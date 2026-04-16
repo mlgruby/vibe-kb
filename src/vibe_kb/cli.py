@@ -1,4 +1,5 @@
 """CLI entry point for kb command."""
+
 import click
 import re
 import tempfile
@@ -10,7 +11,7 @@ from .add.youtube import extract_youtube_transcript
 from .utils.files import generate_filename, create_metadata
 from .search import search_wiki
 
-_KB_NAME_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_-]*$')
+_KB_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 
 
 def _validate_kb_name(name: str) -> None:
@@ -43,7 +44,7 @@ def cli():
 @click.option(
     "--vault-path",
     type=click.Path(file_okay=False, path_type=Path),
-    help="Obsidian vault path (default: ~/obsidian-vault)"
+    help="Obsidian vault path (default: ~/obsidian-vault)",
 )
 @click.option("--topic", help="Research topic")
 def create(name: str, vault_path: Path, topic: str):
@@ -118,7 +119,7 @@ Where this concept is used
 ## Open Questions
 Areas for further research
 """
-    (template_dir / "concept-article.md").write_text(concept_template, encoding='utf-8')
+    (template_dir / "concept-article.md").write_text(concept_template, encoding="utf-8")
 
     # Source summary template
     summary_template = """---
@@ -149,19 +150,23 @@ authors: names
 Things to explore further
 """
     for source_type in ["article", "paper", "book", "video"]:
-        (template_dir / f"{source_type}-summary.md").write_text(summary_template, encoding='utf-8')
+        (template_dir / f"{source_type}-summary.md").write_text(summary_template, encoding="utf-8")
 
 
 @cli.command()
 @click.argument("kb_name")
-@click.option("--epub", "epub_path", type=click.Path(exists=True, path_type=Path), help="ePub file path")
+@click.option(
+    "--epub", "epub_path", type=click.Path(exists=True, path_type=Path), help="ePub file path"
+)
 @click.option("--youtube", "youtube_url", type=str, help="YouTube video URL")
 @click.option(
     "--vault-path",
     type=click.Path(exists=True, file_okay=False, path_type=Path),
-    help="Obsidian vault path"
+    help="Obsidian vault path",
 )
-def add(kb_name: str, epub_path: Optional[Path], youtube_url: Optional[str], vault_path: Optional[Path]):
+def add(
+    kb_name: str, epub_path: Optional[Path], youtube_url: Optional[str], vault_path: Optional[Path]
+):
     """Add source material to knowledge base."""
     _validate_kb_name(kb_name)
 
@@ -185,7 +190,7 @@ def add(kb_name: str, epub_path: Optional[Path], youtube_url: Optional[str], vau
 def _add_epub(kb_dir: Path, epub_path: Path):
     """Add ePub book to knowledge base."""
     # CRITICAL FIX #4: Validate file extension
-    if epub_path.suffix.lower() != '.epub':
+    if epub_path.suffix.lower() != ".epub":
         click.echo(f"Error: '{epub_path.name}' is not an .epub file")
         raise click.Abort()
 
@@ -199,7 +204,7 @@ def _add_epub(kb_dir: Path, epub_path: Path):
         raise click.Abort()
 
     # Generate filename
-    filename = generate_filename(metadata['title'])
+    filename = generate_filename(metadata["title"])
     output_path = kb_dir / "raw" / "books" / filename
 
     # Check for existing source to prevent silent overwrite
@@ -216,14 +221,14 @@ def _add_epub(kb_dir: Path, epub_path: Path):
         raise click.Abort()
 
     # Create metadata file
-    meta_path = output_path.with_suffix('.meta.json')
+    meta_path = output_path.with_suffix(".meta.json")
     create_metadata(
         meta_path,
         source_url=str(epub_path),
-        source_type='book',
-        title=metadata['title'],
-        author=metadata['author'],
-        chapter_count=result['chapter_count']
+        source_type="book",
+        title=metadata["title"],
+        author=metadata["author"],
+        chapter_count=result["chapter_count"],
     )
 
     click.echo(f"✓ Added book: {metadata['title']}")
@@ -235,10 +240,13 @@ def _add_youtube(kb_dir: Path, url: str):
     """Add YouTube video to knowledge base."""
     # Validate URL format: must be HTTPS and a known YouTube host
     from urllib.parse import urlparse
+
     parsed = urlparse(url)
-    allowed_hosts = {'youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'}
-    if parsed.scheme != 'https' or parsed.hostname not in allowed_hosts:
-        click.echo("Error: Invalid YouTube URL. Must be https://youtube.com/... or https://youtu.be/...")
+    allowed_hosts = {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"}
+    if parsed.scheme != "https" or parsed.hostname not in allowed_hosts:
+        click.echo(
+            "Error: Invalid YouTube URL. Must be https://youtube.com/... or https://youtu.be/..."
+        )
         raise click.Abort()
 
     click.echo(f"Extracting transcript from: {url}")
@@ -250,14 +258,14 @@ def _add_youtube(kb_dir: Path, url: str):
     try:
         # Generate filename from URL metadata first to check for duplicates
         # before doing any network extraction
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as tmp:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as tmp:
             temp_path = Path(tmp.name)
 
         # Extract transcript
         result = extract_youtube_transcript(url, temp_path)
 
         # Generate filename
-        filename = generate_filename(result['title'])
+        filename = generate_filename(result["title"])
         output_path = kb_dir / "raw" / "videos" / filename
 
         # Check for existing source to prevent silent overwrite
@@ -269,18 +277,18 @@ def _add_youtube(kb_dir: Path, url: str):
         # Move temp file to final location (we now own output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         temp_path.rename(output_path)
-        temp_path = None           # successfully moved, don't delete
+        temp_path = None  # successfully moved, don't delete
         output_created_by_us = True  # we created it — safe to clean on failure
 
         # Create metadata
-        meta_path = output_path.with_suffix('.meta.json')
+        meta_path = output_path.with_suffix(".meta.json")
         create_metadata(
             meta_path,
             source_url=url,
-            source_type='video',
-            title=result['title'],
-            author=result['channel'],
-            duration=result['duration']
+            source_type="video",
+            title=result["title"],
+            author=result["channel"],
+            duration=result["duration"],
         )
 
         click.echo(f"✓ Added video: {result['title']}")
@@ -300,7 +308,7 @@ def _add_youtube(kb_dir: Path, url: str):
         # Only clean up output_path if WE created it this invocation
         if output_created_by_us and output_path and output_path.exists():
             output_path.unlink()
-            meta_path = output_path.with_suffix('.meta.json')
+            meta_path = output_path.with_suffix(".meta.json")
             if meta_path.exists():
                 meta_path.unlink()
 
@@ -366,14 +374,14 @@ def _is_excluded_wiki_file(path: Path, base_dir: Path) -> bool:
         return True
 
     # Skip files starting with _ or .
-    if path.name.startswith(('_', '.')):
+    if path.name.startswith(("_", ".")):
         return True
 
     # Check parent directories for _ or . prefix
     try:
         relative = path.relative_to(base_dir)
         for parent in relative.parents:
-            if parent != Path('.') and parent.name.startswith(('_', '.')):
+            if parent != Path(".") and parent.name.startswith(("_", ".")):
                 return True
     except ValueError:
         # Path is outside base_dir
@@ -433,7 +441,7 @@ def stats(kb_name: str, vault_path: Optional[Path]):
             if not _is_excluded_wiki_file(md_file, wiki_dir):
                 # Try to read the file to verify it's a valid text file and count words
                 try:
-                    content = md_file.read_text(encoding='utf-8')
+                    content = md_file.read_text(encoding="utf-8")
                     wiki_files.append(md_file)
                     total_words += len(content.split())
                 except (UnicodeDecodeError, PermissionError, OSError):

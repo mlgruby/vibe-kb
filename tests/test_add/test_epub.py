@@ -1,4 +1,5 @@
 """Tests for ePub ingestion."""
+
 import pytest
 from pathlib import Path
 from click.testing import CliRunner
@@ -10,23 +11,19 @@ from ebooklib import epub
 def create_minimal_epub(path: Path, title="Test Book", author="Test Author", chapters=None):
     """Create a minimal valid ePub for testing."""
     book = epub.EpubBook()
-    book.set_identifier('test123')
+    book.set_identifier("test123")
     book.set_title(title)
-    book.set_language('en')
+    book.set_language("en")
     book.add_author(author)
 
     # Add chapters
     if chapters is None:
-        chapters = [('Chapter 1', 'This is chapter one content.')]
+        chapters = [("Chapter 1", "This is chapter one content.")]
 
     epub_chapters = []
     for i, (chapter_title, content) in enumerate(chapters):
-        chapter = epub.EpubHtml(
-            title=chapter_title,
-            file_name=f'chap_{i+1}.xhtml',
-            lang='en'
-        )
-        chapter.content = f'<html><body><h1>{chapter_title}</h1><p>{content}</p></body></html>'
+        chapter = epub.EpubHtml(title=chapter_title, file_name=f"chap_{i + 1}.xhtml", lang="en")
+        chapter.content = f"<html><body><h1>{chapter_title}</h1><p>{content}</p></body></html>"
         book.add_item(chapter)
         epub_chapters.append(chapter)
 
@@ -36,7 +33,7 @@ def create_minimal_epub(path: Path, title="Test Book", author="Test Author", cha
     book.add_item(epub.EpubNav())
 
     # Define spine
-    book.spine = ['nav'] + epub_chapters
+    book.spine = ["nav"] + epub_chapters
 
     # Write to file
     epub.write_epub(str(path), book)
@@ -52,10 +49,10 @@ def test_extract_epub_basic(tmp_path):
     result = extract_epub_to_markdown(epub_path, output_path)
 
     assert output_path.exists()
-    assert result['title'] == "My Test Book"
-    assert result['author'] == "John Doe"
+    assert result["title"] == "My Test Book"
+    assert result["author"] == "John Doe"
     # Note: chapter_count includes navigation items that have text content
-    assert result['chapter_count'] >= 1
+    assert result["chapter_count"] >= 1
 
     content = output_path.read_text()
     assert "# My Test Book" in content
@@ -69,16 +66,16 @@ def test_extract_epub_with_multiple_chapters(tmp_path):
     output_path = tmp_path / "output.md"
 
     chapters = [
-        ('Chapter 1', 'First chapter content.'),
-        ('Chapter 2', 'Second chapter content.'),
-        ('Chapter 3', 'Third chapter content.')
+        ("Chapter 1", "First chapter content."),
+        ("Chapter 2", "Second chapter content."),
+        ("Chapter 3", "Third chapter content."),
     ]
     create_minimal_epub(epub_path, chapters=chapters)
 
     result = extract_epub_to_markdown(epub_path, output_path)
 
     # Note: chapter_count includes navigation items that have text content
-    assert result['chapter_count'] >= 3
+    assert result["chapter_count"] >= 3
     content = output_path.read_text()
     assert "## Chapter 1" in content
     assert "## Chapter 2" in content
@@ -107,24 +104,24 @@ def test_extract_epub_missing_metadata(tmp_path):
 
     # Create an ePub without standard metadata
     book = epub.EpubBook()
-    book.set_identifier('test456')
+    book.set_identifier("test456")
     # Don't set title or author - they should default to "Unknown"
-    book.set_language('en')
+    book.set_language("en")
 
-    chapter = epub.EpubHtml(title='Chapter', file_name='chap.xhtml', lang='en')
-    chapter.content = '<html><body><p>Content</p></body></html>'
+    chapter = epub.EpubHtml(title="Chapter", file_name="chap.xhtml", lang="en")
+    chapter.content = "<html><body><p>Content</p></body></html>"
     book.add_item(chapter)
     book.toc = (chapter,)
     book.add_item(epub.EpubNcx())
     book.add_item(epub.EpubNav())
-    book.spine = ['nav', chapter]
+    book.spine = ["nav", chapter]
 
     epub.write_epub(str(epub_path), book)
 
     result = extract_epub_to_markdown(epub_path, output_path)
 
-    assert result['title'] == "Unknown"
-    assert result['author'] == "Unknown"
+    assert result["title"] == "Unknown"
+    assert result["author"] == "Unknown"
 
 
 def test_extract_epub_empty_chapters(tmp_path):
@@ -138,9 +135,9 @@ def test_extract_epub_empty_chapters(tmp_path):
     create_minimal_epub(epub_path, title="Empty Book", author="Test Author")
 
     # Mock the book to return no items with text content
-    with patch('vibe_kb.add.epub.epub.read_epub') as mock_read:
+    with patch("vibe_kb.add.epub.epub.read_epub") as mock_read:
         mock_book = MagicMock()
-        mock_book.get_metadata.return_value = [['Empty Book']]
+        mock_book.get_metadata.return_value = [["Empty Book"]]
 
         # Return empty list of items
         mock_book.get_items.return_value = []
@@ -160,9 +157,9 @@ def test_get_epub_metadata(tmp_path):
 
     metadata = get_epub_metadata(epub_path)
 
-    assert metadata['title'] == "Metadata Test"
-    assert metadata['author'] == "Jane Smith"
-    assert metadata['source_type'] == 'book'
+    assert metadata["title"] == "Metadata Test"
+    assert metadata["author"] == "Jane Smith"
+    assert metadata["source_type"] == "book"
 
 
 def test_get_epub_metadata_missing(tmp_path):
@@ -170,23 +167,23 @@ def test_get_epub_metadata_missing(tmp_path):
     epub_path = tmp_path / "no_metadata.epub"
 
     book = epub.EpubBook()
-    book.set_identifier('test000')
-    book.set_language('en')
+    book.set_identifier("test000")
+    book.set_language("en")
 
-    chapter = epub.EpubHtml(title='Chapter', file_name='chap.xhtml', lang='en')
-    chapter.content = '<html><body><p>Content</p></body></html>'
+    chapter = epub.EpubHtml(title="Chapter", file_name="chap.xhtml", lang="en")
+    chapter.content = "<html><body><p>Content</p></body></html>"
     book.add_item(chapter)
     book.toc = (chapter,)
     book.add_item(epub.EpubNcx())
     book.add_item(epub.EpubNav())
-    book.spine = ['nav', chapter]
+    book.spine = ["nav", chapter]
 
     epub.write_epub(str(epub_path), book)
 
     metadata = get_epub_metadata(epub_path)
 
-    assert metadata['title'] == "Unknown"
-    assert metadata['author'] == "Unknown"
+    assert metadata["title"] == "Unknown"
+    assert metadata["author"] == "Unknown"
 
 
 def test_cli_add_epub_integration(tmp_path):
@@ -202,11 +199,9 @@ def test_cli_add_epub_integration(tmp_path):
     create_minimal_epub(epub_path, title="CLI Test Book", author="Test Author")
 
     # Add ePub to KB
-    result = runner.invoke(cli, [
-        "add", "test-kb",
-        "--epub", str(epub_path),
-        "--vault-path", str(tmp_path)
-    ])
+    result = runner.invoke(
+        cli, ["add", "test-kb", "--epub", str(epub_path), "--vault-path", str(tmp_path)]
+    )
 
     assert result.exit_code == 0
     assert "Added book: CLI Test Book" in result.output
@@ -238,11 +233,9 @@ def test_cli_add_epub_invalid_extension(tmp_path):
     wrong_file.write_text("This is not an epub")
 
     # Try to add it
-    result = runner.invoke(cli, [
-        "add", "test-kb",
-        "--epub", str(wrong_file),
-        "--vault-path", str(tmp_path)
-    ])
+    result = runner.invoke(
+        cli, ["add", "test-kb", "--epub", str(wrong_file), "--vault-path", str(tmp_path)]
+    )
 
     assert result.exit_code != 0
     assert "not an .epub file" in result.output.lower()
@@ -261,11 +254,9 @@ def test_cli_add_epub_corrupt_file(tmp_path):
     corrupt_epub.write_text("Not a valid ePub file")
 
     # Try to add it
-    result = runner.invoke(cli, [
-        "add", "test-kb",
-        "--epub", str(corrupt_epub),
-        "--vault-path", str(tmp_path)
-    ])
+    result = runner.invoke(
+        cli, ["add", "test-kb", "--epub", str(corrupt_epub), "--vault-path", str(tmp_path)]
+    )
 
     assert result.exit_code != 0
     assert "error" in result.output.lower() or "invalid" in result.output.lower()
@@ -282,14 +273,14 @@ def test_cli_add_epub_prevents_overwrite(tmp_path):
     create_minimal_epub(epub_path, title="Duplicate Book", author="Author")
 
     # First add — should succeed
-    result = runner.invoke(cli, [
-        "add", "test-kb", "--epub", str(epub_path), "--vault-path", str(tmp_path)
-    ])
+    result = runner.invoke(
+        cli, ["add", "test-kb", "--epub", str(epub_path), "--vault-path", str(tmp_path)]
+    )
     assert result.exit_code == 0
 
     # Second add — should fail with overwrite error
-    result = runner.invoke(cli, [
-        "add", "test-kb", "--epub", str(epub_path), "--vault-path", str(tmp_path)
-    ])
+    result = runner.invoke(
+        cli, ["add", "test-kb", "--epub", str(epub_path), "--vault-path", str(tmp_path)]
+    )
     assert result.exit_code != 0
     assert "already exists" in result.output

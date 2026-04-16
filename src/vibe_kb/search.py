@@ -1,4 +1,5 @@
 """Wiki search functionality."""
+
 from pathlib import Path
 from typing import List, Dict
 import re
@@ -44,17 +45,17 @@ def search_wiki(wiki_dir: Path, query: str, case_sensitive: bool = False) -> Lis
         # and files inside hidden/underscore directories (e.g. .templates/)
         if md_file.is_symlink():
             continue
-        if md_file.name.startswith(('.', '_')):
+        if md_file.name.startswith((".", "_")):
             continue
         try:
             relative = md_file.relative_to(wiki_dir)
-            if any(part.startswith(('.', '_')) for part in relative.parts[:-1]):
+            if any(part.startswith((".", "_")) for part in relative.parts[:-1]):
                 continue
         except ValueError:
             continue
 
         try:
-            content = md_file.read_text(encoding='utf-8')
+            content = md_file.read_text(encoding="utf-8")
         except (UnicodeDecodeError, PermissionError, OSError):
             # Skip files with read errors (binary files, permission issues, etc.)
             continue
@@ -62,10 +63,12 @@ def search_wiki(wiki_dir: Path, query: str, case_sensitive: bool = False) -> Lis
         # Search each line
         for line_num, line in enumerate(content.splitlines(), 1):
             if pattern.search(line):
-                results.append({
-                    'file': str(md_file.relative_to(wiki_dir)),
-                    'line': line_num,
-                    'match': line.strip()
-                })
+                results.append(
+                    {
+                        "file": str(md_file.relative_to(wiki_dir)),
+                        "line": line_num,
+                        "match": line.strip(),
+                    }
+                )
 
     return results
