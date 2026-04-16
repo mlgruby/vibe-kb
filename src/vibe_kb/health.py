@@ -281,7 +281,10 @@ def check_missing_metadata(wiki_dir: Path) -> List[HealthIssue]:
         if not text:
             continue
 
-        if not text.startswith("---"):
+        # Strip BOM (\ufeff) and leading whitespace before checking for
+        # YAML frontmatter — some editors and OS tools prepend a UTF-8 BOM
+        # or trailing newline that would otherwise cause a false positive.
+        if not text.lstrip("\ufeff").lstrip().startswith("---"):
             rel = str(article.relative_to(wiki_dir))
             issues.append(
                 HealthIssue(

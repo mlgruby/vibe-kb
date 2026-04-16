@@ -359,11 +359,10 @@ def _add_url(kb_dir: Path, url: str):
 
     output_created = False
     output_path = None
+    temp_path = None  # track for cleanup on early failure
 
     try:
         # Perform the actual fetch (title-based filename determined after fetch)
-        import tempfile
-
         with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as tmp:
             temp_path = Path(tmp.name)
 
@@ -401,11 +400,20 @@ def _add_url(kb_dir: Path, url: str):
         click.echo(f"  Location: {output_path}")
 
     except click.Abort:
+        # Duplicate-exists abort: clean up temp only, never touch output_path
+        if temp_path and temp_path.exists():
+            temp_path.unlink()
         raise
     except Exception as e:
-        # Roll back the markdown file if we created it but a later step failed
+        # Clean up temp file if fetch failed before the rename
+        if temp_path and temp_path.exists():
+            temp_path.unlink()
+        # Roll back output if we created it but metadata failed
         if output_created and output_path and output_path.exists():
             output_path.unlink()
+            meta_path = output_path.with_suffix(".meta.json")
+            if meta_path.exists():
+                meta_path.unlink()
         click.echo(f"Error: {str(e)}")
         raise click.Abort()
 

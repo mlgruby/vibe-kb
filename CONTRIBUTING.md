@@ -50,7 +50,7 @@ vibe-kb/
 │   ├── add/
 │   │   ├── epub.py         # extract_epub_to_markdown(), get_epub_metadata()
 │   │   ├── youtube.py      # extract_youtube_transcript(), _parse_vtt()
-│   │   ├── url.py          # stub — not yet implemented
+│   │   ├── url.py          # fetch_url_to_markdown(), _extract_content(), _html_to_markdown()
 │   │   └── arxiv.py        # stub — not yet implemented
 │   └── utils/
 │       ├── files.py        # generate_filename(), create_metadata()
@@ -235,10 +235,8 @@ ci: add security audit job to CI workflow
 
 The clearest contribution opportunities, in rough priority order:
 
-### High priority (MVP gaps)
+### High priority
 
-- **`kb add --url`** — implement `add/url.py` using `requests` + `beautifulsoup4` to fetch a URL, strip boilerplate, and convert to markdown. Wire up `--url` option in `cli.py`. See `add/epub.py` for the pattern to follow.
-- **`kb:health-check` skill** — write `skills/kb-health-check.md` following the spec in `docs/specs/`. The skill should check for orphaned articles, dead wikilinks, stale summaries, missing metadata, and unindexed sources.
 - **`kb list`** — add a `list` command to `cli.py` that scans `vault/knowledge-bases/` and prints each KB with its topic and last-compile time.
 
 ### Medium priority
