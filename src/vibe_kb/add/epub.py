@@ -251,6 +251,9 @@ def extract_epub_to_chapters(epub_path: Path, output_dir: Path) -> Dict[str, Any
     chapter_files = []
     for i, chapter in enumerate(chapters, 1):
         slug = slugify(chapter["title"])
+        # Fallback to just chapter number if slug is empty (e.g., non-Latin titles)
+        if not slug:
+            slug = "chapter"
         filename = f"chapter-{i:02d}-{slug}.md"
         chapter_path = output_dir / filename
 

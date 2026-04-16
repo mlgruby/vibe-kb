@@ -249,8 +249,8 @@ def _add_epub(kb_dir: Path, epub_path: Path, split_chapters: bool = False):
         try:
             result = extract_epub_to_chapters(epub_path, output_dir)
 
-            # Create metadata file in the book directory
-            meta_path = output_dir / "metadata.json"
+            # Create metadata file in the book directory (use .meta.json convention)
+            meta_path = output_dir / "index.meta.json"
             create_metadata(
                 meta_path,
                 source_url=str(epub_path),

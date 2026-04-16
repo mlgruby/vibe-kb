@@ -484,6 +484,10 @@ def test_cli_add_epub_with_split_chapters(tmp_path):
     assert (book_dir / "chapter-01-introduction.md").exists()
     assert (book_dir / "chapter-02-advanced-topics.md").exists()
 
+    # Check metadata file uses .meta.json convention (not metadata.json)
+    assert (book_dir / "index.meta.json").exists(), "Metadata should use index.meta.json"
+    assert not (book_dir / "metadata.json").exists(), "Should not use metadata.json"
+
 
 def test_extract_epub_to_chapters_resolves_relative_image_paths(tmp_path):
     """Test that relative image paths like ../Images/fig.png are resolved correctly."""
@@ -600,9 +604,7 @@ def test_extract_epub_to_chapters_escapes_yaml_frontmatter(tmp_path):
         for line in frontmatter.split("\n")
         if line.strip() and not line.strip().startswith("#")
     ]
-    yaml_fields = [
-        line.split(":")[0] for line in lines if ":" in line and not line.startswith('"')
-    ]
+    yaml_fields = [line.split(":")[0] for line in lines if ":" in line and not line.startswith('"')]
 
     expected_fields = {"type", "title", "author", "chapters", "images", "added"}
     actual_fields = set(yaml_fields)
@@ -615,3 +617,34 @@ def test_extract_epub_to_chapters_escapes_yaml_frontmatter(tmp_path):
     assert expected_fields.issubset(actual_fields), (
         f"Missing fields. Expected {expected_fields}, got {actual_fields}"
     )
+
+
+def test_extract_epub_to_chapters_handles_non_latin_titles(tmp_path):
+    """Test that non-Latin chapter titles get valid filenames with fallback."""
+    epub_path = tmp_path / "test.epub"
+    output_dir = tmp_path / "chinese-book"
+
+    # Create ePub with non-Latin chapter titles
+    chapters = [
+        ("第一章", "First chapter content."),  # Chinese
+        ("第二章", "Second chapter content."),  # Chinese
+        ("---", "Punctuation only"),  # Just punctuation
+    ]
+    create_minimal_epub(epub_path, title="Chinese Book", author="Author", chapters=chapters)
+
+    extract_epub_to_chapters(epub_path, output_dir)
+
+    # Check that chapter files were created with valid names
+    chapter_files = sorted([f for f in output_dir.iterdir() if f.name.startswith("chapter-")])
+    assert len(chapter_files) >= 3  # At least 3 chapters (nav might add one more)
+
+    # Verify filenames are valid (not empty after chapter-XX-)
+    for cf in chapter_files:
+        # Should be chapter-XX-something.md, not chapter-XX-.md
+        assert not cf.name.endswith("-.md"), f"Empty slug in filename: {cf.name}"
+        assert cf.name.endswith(".md"), f"Invalid extension: {cf.name}"
+
+    # Verify index.md wikilinks are valid (no broken links)
+    index_content = (output_dir / "index.md").read_text()
+    # Check that wikilinks don't have empty slugs
+    assert "-|" not in index_content, "Wikilinks should not have empty slugs like 'chapter-01-|'"

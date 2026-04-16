@@ -3,7 +3,7 @@
 import re
 from datetime import date
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 from urllib.parse import urlparse
 
 import requests
@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 from .images import extract_images_from_html, update_markdown_image_links
 
 
-def fetch_url_to_markdown(url: str, output_path: Path) -> Dict[str, str]:
+def fetch_url_to_markdown(url: str, output_path: Path) -> Dict[str, Any]:
     """Fetch a web article and convert to markdown.
 
     Args:
@@ -19,7 +19,7 @@ def fetch_url_to_markdown(url: str, output_path: Path) -> Dict[str, str]:
         output_path: Path to write the markdown file
 
     Returns:
-        Dict with title, author, url, domain
+        Dict with title (str), author (str), url (str), domain (str), images_extracted (int)
 
     Raises:
         ValueError: If URL is invalid, request fails, or no content extracted

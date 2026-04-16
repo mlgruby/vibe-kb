@@ -215,7 +215,8 @@ def extract_images_from_pdf(pdf_file: Path, images_dir: Path) -> Dict:
                         }
                     )
 
-                downloaded = len(images)
+                # Note: downloaded stays 0 because we don't actually save files
+                # Only metadata is recorded until full implementation
 
     except Exception as e:
         return {"images": [], "downloaded": 0, "error": str(e)}

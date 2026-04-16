@@ -36,19 +36,45 @@ def test_extract_images_from_html_creates_directory(tmp_path):
 
 
 def test_extract_images_from_pdf_saves_images(tmp_path):
-    """Test that PDF image extraction works."""
-    # This will need a real PDF with images to test properly
-    # For now, just test the interface exists
+    """Test that PDF image extraction reports downloaded=0 since it only records metadata."""
+    from unittest.mock import patch, MagicMock
+    import sys
+
     pdf_file = tmp_path / "paper.pdf"
     images_dir = tmp_path / "images"
 
-    # Create empty PDF for interface test
+    # Create a minimal PDF file
     pdf_file.write_bytes(b"%PDF-1.4\n%")
 
-    result = extract_images_from_pdf(pdf_file, images_dir)
+    # Mock pdfplumber module (it's imported inside the function)
+    mock_pdfplumber = MagicMock()
+    mock_pdf = MagicMock()
+    mock_page = MagicMock()
+    # Simulate 2 images on the page
+    mock_page.images = [
+        {"x0": 0, "y0": 0, "x1": 100, "y1": 100},
+        {"x0": 0, "y0": 100, "x1": 100, "y1": 200},
+    ]
+    mock_pdf.pages = [mock_page]
+    mock_pdfplumber.open.return_value.__enter__.return_value = mock_pdf
+
+    # Patch sys.modules to inject our mock
+    with patch.dict(sys.modules, {"pdfplumber": mock_pdfplumber}):
+        result = extract_images_from_pdf(pdf_file, images_dir)
 
     assert "images" in result
     assert "downloaded" in result
+    assert len(result["images"]) == 2, "Should record 2 image metadata entries"
+
+    # Since PDF extraction is not fully implemented (only records metadata, doesn't save files),
+    # downloaded should be 0, not len(images)
+    assert result["downloaded"] == 0, (
+        "PDF extraction should report downloaded=0 until actually saving files"
+    )
+
+    # Verify no actual image files were saved
+    if images_dir.exists():
+        assert len(list(images_dir.glob("*.png"))) == 0, "No image files should be saved"
 
 
 def test_extract_images_from_html_handles_filename_collisions(tmp_path):

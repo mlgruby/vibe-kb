@@ -208,3 +208,6 @@ __marimo__/
 
 # Git worktrees
 .worktrees/
+
+# Claude Code local settings (contains machine-specific paths and settings)
+.claude/settings.local.json
