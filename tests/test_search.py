@@ -273,3 +273,41 @@ def test_cli_search_nonexistent_kb(tmp_path):
     assert result.exit_code != 0
     assert "error" in result.output.lower()
     assert "no wiki found" in result.output.lower()
+
+
+def test_search_wiki_skips_symlinks(tmp_path):
+    """Test that symlinks are skipped for security."""
+    wiki_dir = tmp_path / "wiki"
+    wiki_dir.mkdir()
+
+    # Create a regular file
+    (wiki_dir / "normal.md").write_text("This is a normal file.", encoding='utf-8')
+
+    # Create a sensitive file outside wiki
+    sensitive_dir = tmp_path / "sensitive"
+    sensitive_dir.mkdir()
+    (sensitive_dir / "secret.md").write_text("SECRET CONTENT", encoding='utf-8')
+
+    # Create symlink to sensitive file
+    symlink_path = wiki_dir / "link.md"
+    symlink_path.symlink_to(sensitive_dir / "secret.md")
+
+    # Search should not return content from symlink
+    results = search_wiki(wiki_dir, "SECRET")
+
+    assert len(results) == 0, "Symlinks should be skipped for security"
+
+
+def test_search_wiki_handles_crlf(tmp_path):
+    """Test that Windows CRLF line endings are handled correctly."""
+    wiki_dir = tmp_path / "wiki"
+    wiki_dir.mkdir()
+
+    # Create file with CRLF line endings
+    (wiki_dir / "windows.md").write_text("Line 1\r\nLine 2 with keyword\r\nLine 3", encoding='utf-8')
+
+    results = search_wiki(wiki_dir, "keyword")
+
+    assert len(results) == 1
+    assert results[0]['line'] == 2
+    assert '\r' not in results[0]['match'], "Match should not contain carriage return"

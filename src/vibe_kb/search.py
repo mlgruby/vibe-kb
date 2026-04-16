@@ -40,8 +40,8 @@ def search_wiki(wiki_dir: Path, query: str, case_sensitive: bool = False) -> Lis
 
     # Search all .md files recursively
     for md_file in wiki_dir.rglob("*.md"):
-        # Skip hidden files (starting with .)
-        if md_file.name.startswith('.'):
+        # Skip hidden files and symlinks for security
+        if md_file.name.startswith('.') or md_file.is_symlink():
             continue
 
         try:
@@ -51,7 +51,7 @@ def search_wiki(wiki_dir: Path, query: str, case_sensitive: bool = False) -> Lis
             continue
 
         # Search each line
-        for line_num, line in enumerate(content.split('\n'), 1):
+        for line_num, line in enumerate(content.splitlines(), 1):
             if pattern.search(line):
                 results.append({
                     'file': str(md_file.relative_to(wiki_dir)),
