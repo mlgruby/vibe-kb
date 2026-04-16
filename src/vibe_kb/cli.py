@@ -451,7 +451,7 @@ def _add_arxiv(kb_dir: Path, query: str, limit: int):
 
             # Check if already exists
             if output_path.exists():
-                click.echo(f"  ⊘ Skipped (already exists)")
+                click.echo("  ⊘ Skipped (already exists)")
                 continue
 
             # Convert to markdown

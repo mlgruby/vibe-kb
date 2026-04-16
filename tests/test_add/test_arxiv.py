@@ -1,6 +1,4 @@
 """Tests for arXiv paper fetching."""
-import pytest
-from pathlib import Path
 from vibe_kb.add.arxiv import search_arxiv, download_arxiv_pdf, arxiv_to_markdown
 
 
