@@ -8,6 +8,7 @@ from typing import Optional
 from .config import KBConfig
 from .add.epub import extract_epub_to_markdown, get_epub_metadata
 from .add.youtube import extract_youtube_transcript
+from .add.url import fetch_url_to_markdown
 from .utils.files import generate_filename, create_metadata
 from .search import search_wiki
 
@@ -159,13 +160,18 @@ Things to explore further
     "--epub", "epub_path", type=click.Path(exists=True, path_type=Path), help="ePub file path"
 )
 @click.option("--youtube", "youtube_url", type=str, help="YouTube video URL")
+@click.option("--url", "article_url", type=str, help="Web article URL")
 @click.option(
     "--vault-path",
     type=click.Path(exists=True, file_okay=False, path_type=Path),
     help="Obsidian vault path",
 )
 def add(
-    kb_name: str, epub_path: Optional[Path], youtube_url: Optional[str], vault_path: Optional[Path]
+    kb_name: str,
+    epub_path: Optional[Path],
+    youtube_url: Optional[str],
+    article_url: Optional[str],
+    vault_path: Optional[Path],
 ):
     """Add source material to knowledge base."""
     _validate_kb_name(kb_name)
@@ -182,8 +188,10 @@ def add(
         _add_epub(kb_dir, epub_path)
     elif youtube_url:
         _add_youtube(kb_dir, youtube_url)
+    elif article_url:
+        _add_url(kb_dir, article_url)
     else:
-        click.echo("Error: No source specified. Use --epub or --youtube")
+        click.echo("Error: No source specified. Use --epub, --url, or --youtube")
         raise click.Abort()
 
 
@@ -324,6 +332,77 @@ def _add_youtube(kb_dir: Path, url: str):
             if meta_path.exists():
                 meta_path.unlink()
 
+        click.echo(f"Error: {str(e)}")
+        raise click.Abort()
+
+
+def _add_url(kb_dir: Path, url: str):
+    """Add a web article to knowledge base.
+
+    Transactional guarantee: if metadata creation fails after the markdown
+    has been written, the partially-written .md file is removed so a
+    subsequent retry can succeed cleanly.
+    """
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        click.echo(
+            f"Error: Invalid URL scheme '{parsed.scheme}'. Only http and https URLs are supported."
+        )
+        raise click.Abort()
+
+    click.echo(f"Fetching article: {url}")
+
+    output_created = False
+    output_path = None
+
+    try:
+        # Perform the actual fetch (title-based filename determined after fetch)
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as tmp:
+            temp_path = Path(tmp.name)
+
+        result = fetch_url_to_markdown(url, temp_path)
+
+        # Generate final filename from actual title
+        filename = generate_filename(result["title"])
+        output_path = kb_dir / "raw" / "articles" / filename
+
+        if output_path.exists():
+            temp_path.unlink(missing_ok=True)
+            click.echo(f"Error: Source already exists at {output_path}")
+            click.echo("Remove the existing file first if you want to replace it.")
+            raise click.Abort()
+
+        # Move temp file to final location
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        temp_path.rename(output_path)
+        temp_path = None  # successfully moved
+        output_created = True
+
+        # Create metadata
+        meta_path = output_path.with_suffix(".meta.json")
+        create_metadata(
+            meta_path,
+            source_url=url,
+            source_type="article",
+            title=result["title"],
+            author=result["author"],
+            domain=result["domain"],
+        )
+
+        click.echo(f"✓ Added article: {result['title']}")
+        click.echo(f"  Source: {result['domain']}")
+        click.echo(f"  Location: {output_path}")
+
+    except click.Abort:
+        raise
+    except Exception as e:
+        # Roll back the markdown file if we created it but a later step failed
+        if output_created and output_path and output_path.exists():
+            output_path.unlink()
         click.echo(f"Error: {str(e)}")
         raise click.Abort()
 
