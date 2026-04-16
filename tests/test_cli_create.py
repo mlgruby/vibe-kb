@@ -1,5 +1,4 @@
 """Tests for kb create command."""
-from pathlib import Path
 from click.testing import CliRunner
 from vibe_kb.cli import cli
 import json

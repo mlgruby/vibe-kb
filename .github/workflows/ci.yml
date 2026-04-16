@@ -98,7 +98,7 @@ jobs:
         run: uv sync --all-groups
 
       - name: Export runtime dependencies
-        run: uv export --no-dev --format requirements-txt > /tmp/requirements.txt
+        run: uv export --no-dev --no-emit-project --format requirements-txt > /tmp/requirements.txt
 
       - name: Audit dependencies for CVEs
         run: uv tool run pip-audit --requirement /tmp/requirements.txt

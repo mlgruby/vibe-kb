@@ -55,7 +55,7 @@ def search_wiki(wiki_dir: Path, query: str, case_sensitive: bool = False) -> Lis
 
         try:
             content = md_file.read_text(encoding='utf-8')
-        except (UnicodeDecodeError, PermissionError, OSError) as e:
+        except (UnicodeDecodeError, PermissionError, OSError):
             # Skip files with read errors (binary files, permission issues, etc.)
             continue
 

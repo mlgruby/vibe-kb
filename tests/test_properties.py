@@ -100,7 +100,6 @@ _valid_name_chars = st.text(
 @settings(max_examples=300)
 def test_validate_kb_name_accepts_valid_names(name):
     """Any name matching the slug pattern must be accepted without raising."""
-    from click.testing import CliRunner
     # _validate_kb_name calls click.Abort on failure; we test it doesn't raise
     try:
         _validate_kb_name(name)  # should not raise

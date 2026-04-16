@@ -1,6 +1,5 @@
 """Tests for wiki search."""
 import pytest
-from pathlib import Path
 from click.testing import CliRunner
 from vibe_kb.search import search_wiki
 from vibe_kb.cli import cli

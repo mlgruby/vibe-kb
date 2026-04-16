@@ -378,7 +378,7 @@ def test_cli_add_youtube_rejects_non_youtube_https(tmp_path):
 
 def test_cli_add_youtube_duplicate_preserves_existing(tmp_path):
     """Duplicate add must not delete the pre-existing source or metadata."""
-    from unittest.mock import patch, MagicMock
+    from unittest.mock import patch
 
     runner = CliRunner()
     result = runner.invoke(cli, ["create", "test-kb", "--vault-path", str(tmp_path)])
