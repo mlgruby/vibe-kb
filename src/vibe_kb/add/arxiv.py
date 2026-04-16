@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List, Dict
 import requests
 from markitdown import MarkItDown
+from .images import extract_images_from_html, update_markdown_image_links
 
 
 def search_arxiv(query: str, limit: int = 10) -> List[Dict]:
@@ -126,14 +127,32 @@ def arxiv_to_markdown(arxiv_id: str, output_path: Path) -> Dict:
             temp_html = output_path.parent / f"{arxiv_id}.html"
             temp_html.write_bytes(response.content)
 
+            # Extract images from HTML
+            images_dir = output_path.parent / f"{output_path.stem}_images"
+            base_url = f"https://arxiv.org/html/{arxiv_id}/"
+            image_result = extract_images_from_html(temp_html, images_dir, base_url)
+
             # Convert to markdown
             result = md.convert(str(temp_html))
-            output_path.write_text(result.text_content, encoding="utf-8")
+            markdown_content = result.text_content
+
+            # Update markdown image links to point to local files
+            if image_result["downloaded"] > 0:
+                images_dir_relative = f"{output_path.stem}_images"
+                markdown_content = update_markdown_image_links(
+                    markdown_content, image_result["images"], images_dir_relative
+                )
+
+            output_path.write_text(markdown_content, encoding="utf-8")
 
             # Clean up temp file
             temp_html.unlink()
 
-            return {"success": True, "format": "html"}
+            return {
+                "success": True,
+                "format": "html",
+                "images_extracted": image_result["downloaded"],
+            }
     except Exception:
         pass  # Fall back to PDF
 
