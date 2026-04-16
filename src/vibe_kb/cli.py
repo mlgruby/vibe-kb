@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 from .config import KBConfig
-from .add.epub import extract_epub_to_markdown, get_epub_metadata
+from .add.epub import extract_epub_to_markdown, extract_epub_to_chapters, get_epub_metadata
 from .add.youtube import extract_youtube_transcript
 from .add.url import fetch_url_to_markdown
 from .add.arxiv import search_arxiv, arxiv_to_markdown
@@ -160,6 +160,7 @@ Things to explore further
 @click.option(
     "--epub", "epub_path", type=click.Path(exists=True, path_type=Path), help="ePub file path"
 )
+@click.option("--split-chapters", is_flag=True, help="Split ePub into separate chapter files")
 @click.option("--youtube", "youtube_url", type=str, help="YouTube video URL")
 @click.option("--url", "article_url", type=str, help="Web article URL")
 @click.option("--arxiv", "arxiv_query", type=str, help="arXiv search query")
@@ -172,6 +173,7 @@ Things to explore further
 def add(
     kb_name: str,
     epub_path: Optional[Path],
+    split_chapters: bool,
     youtube_url: Optional[str],
     article_url: Optional[str],
     arxiv_query: Optional[str],
@@ -190,7 +192,7 @@ def add(
         raise click.Abort()
 
     if epub_path:
-        _add_epub(kb_dir, epub_path)
+        _add_epub(kb_dir, epub_path, split_chapters)
     elif youtube_url:
         _add_youtube(kb_dir, youtube_url)
     elif article_url:
@@ -202,7 +204,7 @@ def add(
         raise click.Abort()
 
 
-def _add_epub(kb_dir: Path, epub_path: Path):
+def _add_epub(kb_dir: Path, epub_path: Path, split_chapters: bool = False):
     """Add ePub book to knowledge base.
 
     Transactional guarantee: if metadata creation fails after the markdown
@@ -215,6 +217,11 @@ def _add_epub(kb_dir: Path, epub_path: Path):
     between the exists() check and the write — a second concurrent process
     could create the same destination file in the milliseconds between them.
     For a personal single-user CLI this risk is negligible and not mitigated.
+
+    Args:
+        kb_dir: Knowledge base directory
+        epub_path: Path to ePub file
+        split_chapters: If True, split into directory with separate chapter files
     """
     if epub_path.suffix.lower() != ".epub":
         click.echo(f"Error: '{epub_path.name}' is not an .epub file")
@@ -229,41 +236,80 @@ def _add_epub(kb_dir: Path, epub_path: Path):
         raise click.Abort()
 
     filename = generate_filename(metadata["title"])
-    output_path = kb_dir / "raw" / "books" / filename
 
-    if output_path.exists():
-        click.echo(f"Error: Source already exists at {output_path}")
-        click.echo("Remove the existing file first if you want to replace it.")
-        raise click.Abort()
+    if split_chapters:
+        # Create directory for book with chapters
+        output_dir = kb_dir / "raw" / "books" / filename.replace(".md", "")
 
-    output_created = False
-    try:
-        result = extract_epub_to_markdown(epub_path, output_path)
-        output_created = True  # markdown written — track for cleanup on failure
+        if output_dir.exists():
+            click.echo(f"Error: Source already exists at {output_dir}")
+            click.echo("Remove the existing directory first if you want to replace it.")
+            raise click.Abort()
 
-        meta_path = output_path.with_suffix(".meta.json")
-        create_metadata(
-            meta_path,
-            source_url=str(epub_path),
-            source_type="book",
-            title=metadata["title"],
-            author=metadata["author"],
-            chapter_count=result["chapter_count"],
-        )
-    except Exception as e:
-        # Roll back both the markdown file and any partial .meta.json
-        # so a retry is not blocked by the "already exists" guard.
-        if output_created and output_path.exists():
-            output_path.unlink()
+        try:
+            result = extract_epub_to_chapters(epub_path, output_dir)
+
+            # Create metadata file in the book directory
+            meta_path = output_dir / "metadata.json"
+            create_metadata(
+                meta_path,
+                source_url=str(epub_path),
+                source_type="book",
+                title=metadata["title"],
+                author=metadata["author"],
+                chapter_count=result["chapter_count"],
+                images_extracted=result["images_extracted"],
+            )
+        except Exception as e:
+            # Roll back the entire directory on failure
+            if output_dir.exists():
+                import shutil
+                shutil.rmtree(output_dir)
+            click.echo(f"Error: {str(e)}")
+            raise click.Abort()
+
+        click.echo(f"✓ Added book: {metadata['title']} ({result['chapter_count']} chapters)")
+        click.echo(f"  Location: {output_dir}")
+        click.echo(f"  Images: {result['images_extracted']}")
+
+    else:
+        # Original single-file behavior
+        output_path = kb_dir / "raw" / "books" / filename
+
+        if output_path.exists():
+            click.echo(f"Error: Source already exists at {output_path}")
+            click.echo("Remove the existing file first if you want to replace it.")
+            raise click.Abort()
+
+        output_created = False
+        try:
+            result = extract_epub_to_markdown(epub_path, output_path)
+            output_created = True  # markdown written — track for cleanup on failure
+
             meta_path = output_path.with_suffix(".meta.json")
-            if meta_path.exists():
-                meta_path.unlink()
-        click.echo(f"Error: {str(e)}")
-        raise click.Abort()
+            create_metadata(
+                meta_path,
+                source_url=str(epub_path),
+                source_type="book",
+                title=metadata["title"],
+                author=metadata["author"],
+                chapter_count=result["chapter_count"],
+                images_extracted=result.get("images_extracted", 0),
+            )
+        except Exception as e:
+            # Roll back both the markdown file and any partial .meta.json
+            # so a retry is not blocked by the "already exists" guard.
+            if output_created and output_path.exists():
+                output_path.unlink()
+                meta_path = output_path.with_suffix(".meta.json")
+                if meta_path.exists():
+                    meta_path.unlink()
+            click.echo(f"Error: {str(e)}")
+            raise click.Abort()
 
-    click.echo(f"✓ Added book: {metadata['title']}")
-    click.echo(f"  Location: {output_path}")
-    click.echo(f"  Chapters: {result['chapter_count']}")
+        click.echo(f"✓ Added book: {metadata['title']}")
+        click.echo(f"  Location: {output_path}")
+        click.echo(f"  Chapters: {result['chapter_count']}")
 
 
 def _add_youtube(kb_dir: Path, url: str):

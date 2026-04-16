@@ -3,7 +3,11 @@
 import pytest
 from pathlib import Path
 from click.testing import CliRunner
-from vibe_kb.add.epub import extract_epub_to_markdown, get_epub_metadata
+from vibe_kb.add.epub import (
+    extract_epub_to_markdown,
+    get_epub_metadata,
+    extract_epub_to_chapters,
+)
 from vibe_kb.cli import cli
 from ebooklib import epub
 
@@ -318,3 +322,152 @@ def test_add_epub_rolls_back_markdown_on_metadata_failure(tmp_path):
     )
     assert result.exit_code == 0
     assert "Added book" in result.output
+
+
+def test_extract_epub_to_chapters_creates_directory_structure(tmp_path):
+    """Test that ePub extraction creates directory with index and chapter files."""
+    epub_path = tmp_path / "test.epub"
+    output_dir = tmp_path / "build-llm-from-scratch"
+
+    chapters = [
+        ("Introduction to LLMs", "This is the introduction content."),
+        ("Working with Text Data", "This covers tokenization."),
+        ("Coding Attention Mechanisms", "This explains attention."),
+    ]
+    create_minimal_epub(
+        epub_path, title="Build a Large Language Model", author="Sebastian Raschka", chapters=chapters
+    )
+
+    result = extract_epub_to_chapters(epub_path, output_dir)
+
+    # Check result metadata
+    assert result["title"] == "Build a Large Language Model"
+    assert result["author"] == "Sebastian Raschka"
+    assert result["chapter_count"] >= 3  # May include navigation items
+    assert result["images_extracted"] == 0
+
+    # Check directory structure
+    assert output_dir.exists()
+    assert (output_dir / "index.md").exists()
+    assert (output_dir / "chapter-01-introduction-to-llms.md").exists()
+    assert (output_dir / "chapter-02-working-with-text-data.md").exists()
+    assert (output_dir / "chapter-03-coding-attention-mechanisms.md").exists()
+
+    # Check index.md content
+    index_content = (output_dir / "index.md").read_text()
+    assert "# Build a Large Language Model" in index_content
+    assert "**Author:** Sebastian Raschka" in index_content
+    assert "[[chapter-01-introduction-to-llms|Chapter 1: Introduction to LLMs]]" in index_content
+    assert "[[chapter-02-working-with-text-data|Chapter 2: Working with Text Data]]" in index_content
+
+    # Check chapter file content
+    chapter1_content = (output_dir / "chapter-01-introduction-to-llms.md").read_text()
+    assert "# Introduction to LLMs" in chapter1_content
+    assert "This is the introduction content." in chapter1_content
+
+
+def test_extract_epub_to_chapters_creates_robust_index_with_frontmatter(tmp_path):
+    """Test that index.md includes comprehensive frontmatter and metadata."""
+    epub_path = tmp_path / "test.epub"
+    output_dir = tmp_path / "deep-learning-book"
+
+    chapters = [
+        ("Neural Networks Basics", "Introduction to neural networks."),
+        ("Backpropagation", "How backprop works."),
+    ]
+    create_minimal_epub(
+        epub_path,
+        title="Deep Learning",
+        author="Ian Goodfellow",
+        chapters=chapters
+    )
+
+    extract_epub_to_chapters(epub_path, output_dir)
+
+    index_content = (output_dir / "index.md").read_text()
+
+    # Check frontmatter exists
+    assert index_content.startswith("---")
+    assert "type: book" in index_content
+    assert "title: Deep Learning" in index_content
+    assert "author: Ian Goodfellow" in index_content
+    assert "added:" in index_content
+
+    # Check main content sections
+    assert "# Deep Learning" in index_content
+    assert "**Author:** Ian Goodfellow" in index_content
+    assert "## Table of Contents" in index_content
+
+    # Check wikilinks format
+    assert "[[chapter-01-neural-networks-basics|Chapter 1: Neural Networks Basics]]" in index_content
+    assert "[[chapter-02-backpropagation|Chapter 2: Backpropagation]]" in index_content
+
+
+def test_extract_epub_to_chapters_with_images(tmp_path):
+    """Test that image count is included in index frontmatter."""
+    from unittest.mock import patch
+
+    epub_path = tmp_path / "test.epub"
+    output_dir = tmp_path / "book-with-images"
+
+    chapters = [
+        ("Introduction", "See the diagram below."),
+    ]
+    create_minimal_epub(epub_path, title="Visual Book", author="Author", chapters=chapters)
+
+    # Mock image extraction to return 2 images
+    mock_image_result = {
+        "downloaded": 2,
+        "images": [
+            {"original_path": "images/fig1.png", "filename": "fig1.png"},
+            {"original_path": "images/fig2.png", "filename": "fig2.png"},
+        ],
+    }
+
+    with patch("vibe_kb.add.epub.extract_images_from_epub", return_value=mock_image_result):
+        result = extract_epub_to_chapters(epub_path, output_dir)
+
+    assert result["images_extracted"] == 2
+
+    # Check index.md frontmatter includes image count
+    index_content = (output_dir / "index.md").read_text()
+    assert "images: 2" in index_content
+
+
+def test_cli_add_epub_with_split_chapters(tmp_path):
+    """Test CLI integration for adding ePub with chapter splitting."""
+    runner = CliRunner()
+
+    # Create KB first
+    result = runner.invoke(cli, ["create", "test-kb", "--vault-path", str(tmp_path)])
+    assert result.exit_code == 0
+
+    # Create test ePub
+    epub_path = tmp_path / "test_book.epub"
+    chapters = [
+        ("Introduction", "Chapter 1 content."),
+        ("Advanced Topics", "Chapter 2 content."),
+    ]
+    create_minimal_epub(epub_path, title="Split Test Book", author="Test Author", chapters=chapters)
+
+    # Add ePub with --split-chapters flag
+    result = runner.invoke(
+        cli,
+        ["add", "test-kb", "--epub", str(epub_path), "--split-chapters", "--vault-path", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0
+    assert "Added book: Split Test Book" in result.output
+
+    # Check directory structure was created
+    kb_dir = tmp_path / "knowledge-bases" / "test-kb"
+    books_dir = kb_dir / "raw" / "books"
+
+    # Find the book directory (it has a date prefix)
+    book_dirs = [d for d in books_dir.iterdir() if d.is_dir() and "split-test-book" in d.name]
+    assert len(book_dirs) == 1
+    book_dir = book_dirs[0]
+
+    assert (book_dir / "index.md").exists()
+    assert (book_dir / "chapter-01-introduction.md").exists()
+    assert (book_dir / "chapter-02-advanced-topics.md").exists()
