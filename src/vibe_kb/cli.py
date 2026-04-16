@@ -311,11 +311,54 @@ def search(kb_name: str, query: str, vault_path: Optional[Path], case_sensitive:
         click.echo(f"  {result['match']}\n")
 
 
+def _is_excluded_wiki_file(path: Path, base_dir: Path) -> bool:
+    """Check if wiki file should be excluded from article count.
+
+    Files are excluded if:
+    - File is a symlink (security: prevents path traversal)
+    - Filename starts with '_' or '.'
+    - Any parent directory name starts with '_' or '.'
+
+    Args:
+        path: File path to check
+        base_dir: Base wiki directory
+
+    Returns:
+        True if file should be excluded
+    """
+    # Security: skip symlinks to prevent path traversal vulnerability
+    if path.is_symlink():
+        return True
+
+    # Skip files starting with _ or .
+    if path.name.startswith(('_', '.')):
+        return True
+
+    # Check parent directories for _ or . prefix
+    try:
+        relative = path.relative_to(base_dir)
+        for parent in relative.parents:
+            if parent != Path('.') and parent.name.startswith(('_', '.')):
+                return True
+    except ValueError:
+        # Path is outside base_dir
+        return True
+
+    return False
+
+
 @cli.command()
 @click.argument("kb_name")
 @click.option("--vault-path", type=click.Path(exists=True, file_okay=False, path_type=Path))
 def stats(kb_name: str, vault_path: Optional[Path]):
-    """Show knowledge base statistics."""
+    """Show knowledge base statistics.
+
+    Displays KB metadata, source counts, wiki article counts, and total word count.
+
+    Args:
+        kb_name: Name of the knowledge base
+        vault_path: Optional vault path (defaults to ~/obsidian-vault)
+    """
     if not vault_path:
         vault_path = Path.home() / "obsidian-vault"
 
@@ -335,19 +378,30 @@ def stats(kb_name: str, vault_path: Optional[Path]):
         click.echo(f"Error: Failed to load config: {str(e)}")
         raise click.Abort()
 
-    # Count sources
+    # Count sources (skip symlinks for security)
     raw_dir = kb_dir / "raw"
-    source_files = list(raw_dir.rglob("*.md")) + list(raw_dir.rglob("*.pdf"))
+    source_files = []
+    if raw_dir.exists():
+        for pattern in ["*.md", "*.pdf"]:
+            for f in raw_dir.rglob(pattern):
+                if not f.is_symlink():
+                    source_files.append(f)
 
-    # Count wiki articles
+    # Count wiki articles and words (exclude templates, hidden files, symlinks, binary files)
     wiki_dir = kb_dir / "wiki"
-    wiki_files = [f for f in wiki_dir.rglob("*.md") if not f.name.startswith(('_', '.'))]
-
-    # Count words in wiki
+    wiki_files = []
     total_words = 0
-    for wiki_file in wiki_files:
-        content = wiki_file.read_text(encoding='utf-8')
-        total_words += len(content.split())
+    if wiki_dir.exists():
+        for md_file in wiki_dir.rglob("*.md"):
+            if not _is_excluded_wiki_file(md_file, wiki_dir):
+                # Try to read the file to verify it's a valid text file and count words
+                try:
+                    content = md_file.read_text(encoding='utf-8')
+                    wiki_files.append(md_file)
+                    total_words += len(content.split())
+                except (UnicodeDecodeError, PermissionError, OSError):
+                    # Skip files that can't be read (binary files, permission issues)
+                    continue
 
     # Display stats
     click.echo(f"\nKnowledge Base: {config.name}")

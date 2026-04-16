@@ -22,9 +22,8 @@ def test_stats_basic(tmp_path):
     assert "Created:" in result.output
     assert "Last compile: Never" in result.output
     assert "Sources: 0" in result.output
-    # Spec bug: template files in .templates/ are counted because spec only checks f.name
-    # not parent directory. Creates 5 template files.
-    assert "Wiki articles: 5" in result.output
+    # Fixed: template files in .templates/ should NOT be counted (parent dir starts with '.')
+    assert "Wiki articles: 0" in result.output
     assert "Location:" in result.output
 
 
@@ -69,12 +68,12 @@ def test_stats_with_wiki_articles(tmp_path):
     result = runner.invoke(cli, ["stats", "test-kb", "--vault-path", str(tmp_path)])
 
     assert result.exit_code == 0
-    # 5 template files + 2 user articles = 7 total
-    assert "Wiki articles: 7" in result.output
+    # Fixed: template files excluded, only 2 user articles counted
+    assert "Wiki articles: 2" in result.output
 
 
 def test_stats_skip_hidden_files(tmp_path):
-    """Test that hidden files (starting with .) are skipped per spec."""
+    """Test that hidden files (starting with .) are skipped."""
     runner = CliRunner()
 
     # Create KB
@@ -92,9 +91,8 @@ def test_stats_skip_hidden_files(tmp_path):
     result = runner.invoke(cli, ["stats", "test-kb", "--vault-path", str(tmp_path)])
 
     assert result.exit_code == 0
-    # Spec: wiki_files = [f for f in wiki_dir.rglob("*.md") if not f.name.startswith(('_', '.'))]
-    # 5 template files + 1 visible file = 6 (.hidden.md is skipped)
-    assert "Wiki articles: 6" in result.output
+    # Fixed: template files excluded, only 1 visible file counted (.hidden.md is skipped)
+    assert "Wiki articles: 1" in result.output
 
 
 def test_stats_skip_template_files(tmp_path):
@@ -116,8 +114,8 @@ def test_stats_skip_template_files(tmp_path):
     result = runner.invoke(cli, ["stats", "test-kb", "--vault-path", str(tmp_path)])
 
     assert result.exit_code == 0
-    # 5 template files in .templates/ + 1 article = 6 (_template.md is skipped)
-    assert "Wiki articles: 6" in result.output
+    # Fixed: template files excluded, only 1 article counted (_template.md is skipped)
+    assert "Wiki articles: 1" in result.output
 
 
 def test_stats_nonexistent_kb(tmp_path):
@@ -193,8 +191,8 @@ def test_stats_word_count_formatting(tmp_path):
     assert "1," in result.output  # At least 1,xxx format
 
 
-def test_stats_crashes_on_binary_files(tmp_path):
-    """Test that binary files cause an error per spec (no error handling)."""
+def test_stats_handles_binary_files(tmp_path):
+    """Test that binary files are gracefully skipped with error handling."""
     runner = CliRunner()
 
     # Create KB
@@ -208,11 +206,12 @@ def test_stats_crashes_on_binary_files(tmp_path):
     (wiki_dir / "valid.md").write_text("Valid content", encoding='utf-8')
     (wiki_dir / "binary.md").write_bytes(b'\x80\x81\x82\x83')
 
-    # Run stats - spec has no error handling, so this should crash
+    # Run stats - should succeed, skipping binary file
     result = runner.invoke(cli, ["stats", "test-kb", "--vault-path", str(tmp_path)])
 
-    # Per spec: no error handling, so command will fail
-    assert result.exit_code != 0
+    # Fixed: error handling added, binary file skipped gracefully
+    assert result.exit_code == 0
+    assert "Wiki articles: 1" in result.output  # Only valid.md counted
 
 
 def test_stats_empty_wiki(tmp_path):
@@ -227,8 +226,8 @@ def test_stats_empty_wiki(tmp_path):
     result = runner.invoke(cli, ["stats", "test-kb", "--vault-path", str(tmp_path)])
 
     assert result.exit_code == 0
-    # 5 template files are counted per spec
-    assert "Wiki articles: 5" in result.output
+    # Fixed: template files excluded, 0 articles
+    assert "Wiki articles: 0" in result.output
 
 
 def test_stats_recursive_counting(tmp_path):
@@ -257,12 +256,12 @@ def test_stats_recursive_counting(tmp_path):
 
     assert result.exit_code == 0
     assert "Sources: 3" in result.output
-    # 5 template files + 2 user articles = 7
-    assert "Wiki articles: 7" in result.output
+    # Fixed: template files excluded, only 2 user articles counted
+    assert "Wiki articles: 2" in result.output
 
 
-def test_stats_includes_symlinks(tmp_path):
-    """Test that symlinks are counted per spec (no symlink filtering)."""
+def test_stats_excludes_symlinks(tmp_path):
+    """Test that symlinks are excluded for security (path traversal vulnerability)."""
     runner = CliRunner()
 
     # Create KB
@@ -288,8 +287,8 @@ def test_stats_includes_symlinks(tmp_path):
     result = runner.invoke(cli, ["stats", "test-kb", "--vault-path", str(tmp_path)])
 
     assert result.exit_code == 0
-    # Spec does not filter symlinks: 5 template files + 1 normal + 1 symlink = 7
-    assert "Wiki articles: 7" in result.output
+    # Fixed: symlinks excluded for security, only 1 normal file counted
+    assert "Wiki articles: 1" in result.output
 
 
 def test_stats_empty_files(tmp_path):
@@ -311,5 +310,98 @@ def test_stats_empty_files(tmp_path):
     result = runner.invoke(cli, ["stats", "test-kb", "--vault-path", str(tmp_path)])
 
     assert result.exit_code == 0
-    # 5 template files + 2 user files = 7
-    assert "Wiki articles: 7" in result.output
+    # Fixed: template files excluded, 2 user files counted
+    assert "Wiki articles: 2" in result.output
+
+
+def test_stats_missing_raw_directory(tmp_path):
+    """Test handling when raw/ directory doesn't exist."""
+    runner = CliRunner()
+
+    # Create KB
+    result = runner.invoke(cli, ["create", "test-kb", "--vault-path", str(tmp_path)])
+    assert result.exit_code == 0
+
+    kb_dir = tmp_path / "knowledge-bases" / "test-kb"
+
+    # Remove raw directory
+    import shutil
+    shutil.rmtree(kb_dir / "raw")
+
+    # Run stats - should handle gracefully
+    result = runner.invoke(cli, ["stats", "test-kb", "--vault-path", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert "Sources: 0" in result.output
+
+
+def test_stats_missing_wiki_directory(tmp_path):
+    """Test handling when wiki/ directory doesn't exist."""
+    runner = CliRunner()
+
+    # Create KB
+    result = runner.invoke(cli, ["create", "test-kb", "--vault-path", str(tmp_path)])
+    assert result.exit_code == 0
+
+    kb_dir = tmp_path / "knowledge-bases" / "test-kb"
+
+    # Remove wiki directory
+    import shutil
+    shutil.rmtree(kb_dir / "wiki")
+
+    # Run stats - should handle gracefully
+    result = runner.invoke(cli, ["stats", "test-kb", "--vault-path", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert "Wiki articles: 0" in result.output
+
+
+def test_stats_files_in_templates_directory(tmp_path):
+    """Test that files in .templates/ directory are excluded."""
+    runner = CliRunner()
+
+    # Create KB
+    result = runner.invoke(cli, ["create", "test-kb", "--vault-path", str(tmp_path)])
+    assert result.exit_code == 0
+
+    kb_dir = tmp_path / "knowledge-bases" / "test-kb"
+    wiki_dir = kb_dir / "wiki"
+
+    # Add a file in .templates/ directory
+    (wiki_dir / ".templates" / "custom-template.md").write_text("Template content", encoding='utf-8')
+
+    # Add a regular article
+    (wiki_dir / "article.md").write_text("Article content", encoding='utf-8')
+
+    # Run stats
+    result = runner.invoke(cli, ["stats", "test-kb", "--vault-path", str(tmp_path)])
+
+    assert result.exit_code == 0
+    # Only the regular article should be counted, not template files
+    assert "Wiki articles: 1" in result.output
+
+
+def test_stats_files_in_underscore_directory(tmp_path):
+    """Test that files in directories starting with _ are excluded."""
+    runner = CliRunner()
+
+    # Create KB
+    result = runner.invoke(cli, ["create", "test-kb", "--vault-path", str(tmp_path)])
+    assert result.exit_code == 0
+
+    kb_dir = tmp_path / "knowledge-bases" / "test-kb"
+    wiki_dir = kb_dir / "wiki"
+
+    # Create a directory starting with _
+    (wiki_dir / "_archived").mkdir()
+    (wiki_dir / "_archived" / "old-article.md").write_text("Archived content", encoding='utf-8')
+
+    # Add a regular article
+    (wiki_dir / "current.md").write_text("Current content", encoding='utf-8')
+
+    # Run stats
+    result = runner.invoke(cli, ["stats", "test-kb", "--vault-path", str(tmp_path)])
+
+    assert result.exit_code == 0
+    # Only the current article should be counted, not archived
+    assert "Wiki articles: 1" in result.output
