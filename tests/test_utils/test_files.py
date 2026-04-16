@@ -1,7 +1,7 @@
 """Tests for file utilities."""
 import json
 from datetime import date
-from pathlib import Path
+import pytest
 from vibe_kb.utils.files import generate_filename, create_metadata
 
 
@@ -15,6 +15,14 @@ def test_generate_filename_removes_special_chars():
     result = generate_filename("GPT-4: The Next Generation!")
     expected = f"{date.today().isoformat()}-gpt-4-the-next-generation.md"
     assert result == expected
+
+
+def test_generate_filename_rejects_empty_title():
+    with pytest.raises(ValueError, match="Title cannot be empty"):
+        generate_filename("")
+
+    with pytest.raises(ValueError, match="Title cannot be empty"):
+        generate_filename("   ")
 
 
 def test_create_metadata(tmp_path):

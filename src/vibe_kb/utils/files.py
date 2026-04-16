@@ -16,6 +16,9 @@ def generate_filename(title: str, extension: str = ".md") -> str:
     Returns:
         Formatted filename string
     """
+    if not title or not title.strip():
+        raise ValueError("Title cannot be empty")
+
     # Convert to lowercase and replace spaces with hyphens
     slug = title.lower().replace(" ", "-")
 
@@ -62,4 +65,5 @@ def create_metadata(
 
     metadata.update(kwargs)
 
-    target.write_text(json.dumps(metadata, indent=2))
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(metadata, indent=2), encoding='utf-8')
