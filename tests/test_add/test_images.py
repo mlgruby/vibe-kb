@@ -1,0 +1,215 @@
+"""Tests for image extraction from various sources."""
+
+from unittest.mock import Mock, patch
+from vibe_kb.add.images import extract_images_from_html, extract_images_from_pdf
+
+
+def test_extract_images_from_html_creates_directory(tmp_path):
+    """Test that image extraction creates images directory."""
+    html_content = """
+    <html>
+        <body>
+            <img src="https://arxiv.org/html/1706.03762v7/image1.png" alt="Figure 1">
+            <p>Some text</p>
+            <img src="https://arxiv.org/html/1706.03762v7/image2.png" alt="Figure 2">
+        </body>
+    </html>
+    """
+
+    html_file = tmp_path / "paper.html"
+    html_file.write_text(html_content)
+
+    images_dir = tmp_path / "images"
+
+    # Mock HTTP requests
+    with patch("vibe_kb.add.images.requests.get") as mock_get:
+        mock_response = Mock()
+        mock_response.content = b"fake image data"
+        mock_response.raise_for_status = Mock()
+        mock_get.return_value = mock_response
+
+        result = extract_images_from_html(html_file, images_dir)
+
+    assert images_dir.exists()
+    assert len(result["images"]) == 2
+    assert result["downloaded"] == 2
+
+
+def test_extract_images_from_pdf_saves_images(tmp_path):
+    """Test that PDF image extraction reports downloaded=0 since it only records metadata."""
+    from unittest.mock import patch, MagicMock
+    import sys
+
+    pdf_file = tmp_path / "paper.pdf"
+    images_dir = tmp_path / "images"
+
+    # Create a minimal PDF file
+    pdf_file.write_bytes(b"%PDF-1.4\n%")
+
+    # Mock pdfplumber module (it's imported inside the function)
+    mock_pdfplumber = MagicMock()
+    mock_pdf = MagicMock()
+    mock_page = MagicMock()
+    # Simulate 2 images on the page
+    mock_page.images = [
+        {"x0": 0, "y0": 0, "x1": 100, "y1": 100},
+        {"x0": 0, "y0": 100, "x1": 100, "y1": 200},
+    ]
+    mock_pdf.pages = [mock_page]
+    mock_pdfplumber.open.return_value.__enter__.return_value = mock_pdf
+
+    # Patch sys.modules to inject our mock
+    with patch.dict(sys.modules, {"pdfplumber": mock_pdfplumber}):
+        result = extract_images_from_pdf(pdf_file, images_dir)
+
+    assert "images" in result
+    assert "downloaded" in result
+    assert len(result["images"]) == 2, "Should record 2 image metadata entries"
+
+    # Since PDF extraction is not fully implemented (only records metadata, doesn't save files),
+    # downloaded should be 0, not len(images)
+    assert result["downloaded"] == 0, (
+        "PDF extraction should report downloaded=0 until actually saving files"
+    )
+
+    # Verify no actual image files were saved
+    if images_dir.exists():
+        assert len(list(images_dir.glob("*.png"))) == 0, "No image files should be saved"
+
+
+def test_extract_images_from_html_handles_filename_collisions(tmp_path):
+    """Test that images with same basename don't overwrite each other."""
+    html_content = """
+    <html>
+        <body>
+            <img src="https://example.com/assets/figures/chart.png" alt="Figure 1">
+            <img src="https://example.com/other/chart.png" alt="Figure 2">
+            <img src="https://example.com/diagrams/chart.png" alt="Figure 3">
+        </body>
+    </html>
+    """
+
+    html_file = tmp_path / "page.html"
+    html_file.write_text(html_content)
+
+    images_dir = tmp_path / "images"
+
+    # Mock HTTP requests to return different content for each image
+    with patch("vibe_kb.add.images.requests.get") as mock_get:
+
+        def mock_response(url, timeout):
+            response = Mock()
+            response.raise_for_status = Mock()
+            # Return different content based on URL to simulate different images
+            if "assets/figures" in url:
+                response.content = b"image1_content"
+            elif "other" in url:
+                response.content = b"image2_content"
+            else:
+                response.content = b"image3_content"
+            return response
+
+        mock_get.side_effect = mock_response
+
+        result = extract_images_from_html(html_file, images_dir, base_url="https://example.com")
+
+    # All three images should be downloaded
+    assert result["downloaded"] == 3
+    assert len(result["images"]) == 3
+
+    # Check that all three images exist and have different content
+    saved_files = list(images_dir.glob("*.png"))
+    assert len(saved_files) == 3  # Three distinct files, not one overwritten
+
+    # Verify each image has unique content
+    contents = set()
+    for img_file in saved_files:
+        contents.add(img_file.read_bytes())
+    assert len(contents) == 3  # All three have different content
+
+
+def test_update_markdown_image_links_rewrites_both_absolute_and_relative_urls(tmp_path):
+    """Test that both absolute URLs and relative paths are rewritten in markdown."""
+    from vibe_kb.add.images import update_markdown_image_links
+
+    # Simulate markdown content with both absolute and relative image references
+    # (as might be generated by various HTML-to-Markdown converters)
+    markdown_content = """
+# Test Document
+
+Here is an image with absolute URL:
+![Figure 1](https://arxiv.org/html/1706.03762v7/Figures/image1.png)
+
+Here is the same image with relative path:
+![Figure 1 again](1706.03762v7/Figures/image1.png)
+
+Another image:
+![Figure 2](https://arxiv.org/html/1706.03762v7/image2.png)
+"""
+
+    # Simulate extracted images metadata (what extract_images_from_html returns)
+    images = [
+        {
+            "original_url": "https://arxiv.org/html/1706.03762v7/Figures/image1.png",
+            "original_src": "1706.03762v7/Figures/image1.png",  # The raw src attribute
+            "filename": "image1.png",
+        },
+        {
+            "original_url": "https://arxiv.org/html/1706.03762v7/image2.png",
+            "original_src": "1706.03762v7/image2.png",
+            "filename": "image2.png",
+        },
+    ]
+
+    # Update markdown
+    updated = update_markdown_image_links(markdown_content, images, "paper_images")
+
+    # Verify both absolute and relative forms were replaced
+    assert "paper_images/image1.png" in updated
+    assert "paper_images/image2.png" in updated
+
+    # Verify original URLs are gone
+    assert "https://arxiv.org/html/1706.03762v7" not in updated
+    assert "1706.03762v7/Figures/image1.png" not in updated
+    assert "1706.03762v7/image2.png" not in updated
+
+
+def test_extract_images_from_html_blocks_private_ips(tmp_path):
+    """Image extraction blocks SSRF attempts to private IPs and localhost."""
+    html_with_ssrf = """
+    <html>
+        <body>
+            <img src="http://127.0.0.1/secret" alt="localhost">
+            <img src="http://192.168.1.1/router" alt="private">
+            <img src="http://10.0.0.1/internal" alt="internal">
+            <img src="http://169.254.169.254/metadata" alt="metadata">
+            <img src="https://example.com/safe.png" alt="safe">
+        </body>
+    </html>
+    """
+
+    html_file = tmp_path / "page.html"
+    html_file.write_text(html_with_ssrf)
+    images_dir = tmp_path / "images"
+
+    with patch("vibe_kb.add.images.requests.get") as mock_get:
+        # Only the safe image should be requested
+        mock_response = Mock()
+        mock_response.content = b"safe image data"
+        mock_response.raise_for_status = Mock()
+        mock_get.return_value = mock_response
+
+        result = extract_images_from_html(html_file, images_dir, base_url="https://example.com")
+
+    # Should have attempted to download only the safe image
+    assert result["downloaded"] == 1
+    assert len(result["images"]) == 1
+    assert "safe.png" in result["images"][0]["filename"]
+
+    # Verify private IPs were not requested
+    call_urls = [call[0][0] for call in mock_get.call_args_list]
+    for url in call_urls:
+        assert "127.0.0.1" not in url
+        assert "192.168" not in url
+        assert "10.0.0" not in url
+        assert "169.254.169.254" not in url

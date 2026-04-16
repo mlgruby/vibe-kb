@@ -442,3 +442,145 @@ def test_cli_add_url_no_source_updated_message(tmp_path):
 
     assert result.exit_code != 0
     assert "--url" in result.output
+
+
+def test_fetch_url_resolves_page_relative_images_correctly(tmp_path):
+    """Page-relative images are resolved against article URL, not domain root."""
+    html_with_relative_img = """<!DOCTYPE html>
+<html>
+<head>
+    <title>Article With Relative Image</title>
+</head>
+<body>
+    <article>
+        <h1>Content</h1>
+        <img src="figure.png" alt="Relative image">
+    </article>
+</body>
+</html>"""
+
+    output_path = tmp_path / "article.md"
+    fetched_figure = False
+
+    with patch("vibe_kb.add.url.requests.get") as mock_get:
+        # Mock the HTML fetch
+        mock_html_resp = _make_mock_response(html_with_relative_img)
+        # Simulate the article being at /blog/post.html
+        mock_html_resp.url = "https://example.com/blog/post.html"
+
+        def mock_response_handler(url, **kwargs):
+            nonlocal fetched_figure
+            if url == "https://example.com/blog/post.html":
+                return mock_html_resp
+            elif url == "https://example.com/blog/figure.png":
+                # Correct: resolved relative to article URL
+                fetched_figure = True
+                mock_img = MagicMock()
+                mock_img.content = b"correct figure"
+                mock_img.raise_for_status = MagicMock()
+                return mock_img
+            elif url == "https://example.com/figure.png":
+                # Wrong: resolved relative to domain root
+                mock_img = MagicMock()
+                mock_img.content = b"wrong location"
+                mock_img.raise_for_status = MagicMock()
+                return mock_img
+            return _make_mock_response("<html></html>")
+
+        mock_get.side_effect = mock_response_handler
+
+        fetch_url_to_markdown("https://example.com/blog/post.html", output_path)
+
+    # Verify image was fetched from correct location (relative to article, not domain)
+    assert fetched_figure, "Image should have been fetched from /blog/figure.png, not /figure.png"
+
+
+def test_cli_add_url_with_images_moves_images_to_kb(tmp_path):
+    """Article images are moved from temp location to KB alongside markdown."""
+    # HTML with embedded images
+    html_with_images = """<!DOCTYPE html>
+<html>
+<head>
+    <title>Article With Images</title>
+    <meta name="author" content="Test Author">
+</head>
+<body>
+    <article>
+        <h1>Visual Guide</h1>
+        <p>Here is a diagram:</p>
+        <img src="diagram.png" alt="System diagram">
+        <p>And another figure:</p>
+        <img src="chart.png" alt="Performance chart">
+    </article>
+</body>
+</html>"""
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["create", "test-kb", "--vault-path", str(tmp_path)])
+    assert result.exit_code == 0
+
+    with patch("vibe_kb.add.url.requests.get") as mock_get:
+        # Mock the HTML fetch
+        mock_html_resp = _make_mock_response(html_with_images)
+        mock_html_resp.url = "https://example.com/visual-guide"
+
+        # Mock image downloads
+        def mock_response_handler(url, **kwargs):
+            if url == "https://example.com/visual-guide":
+                return mock_html_resp
+            elif "diagram.png" in url:
+                mock_img = MagicMock()
+                mock_img.content = b"fake diagram data"
+                mock_img.raise_for_status = MagicMock()
+                return mock_img
+            elif "chart.png" in url:
+                mock_img = MagicMock()
+                mock_img.content = b"fake chart data"
+                mock_img.raise_for_status = MagicMock()
+                return mock_img
+            return _make_mock_response("<html></html>")
+
+        mock_get.side_effect = mock_response_handler
+
+        result = runner.invoke(
+            cli,
+            [
+                "add",
+                "test-kb",
+                "--url",
+                "https://example.com/visual-guide",
+                "--vault-path",
+                str(tmp_path),
+            ],
+        )
+
+    assert result.exit_code == 0, f"CLI failed:\n{result.output}"
+
+    # Check that markdown was created
+    kb_dir = tmp_path / "knowledge-bases" / "test-kb"
+    articles_dir = kb_dir / "raw" / "articles"
+    md_files = list(articles_dir.glob("*.md"))
+    assert len(md_files) == 1, f"Expected 1 markdown file, found {len(md_files)}"
+
+    md_file = md_files[0]
+
+    # Check that images directory exists NEXT TO the markdown file in KB
+    images_dir = articles_dir / f"{md_file.stem}_images"
+    assert images_dir.exists(), f"Images directory not found at {images_dir}"
+
+    # Check that both images were moved to the KB
+    diagram = images_dir / "diagram.png"
+    chart = images_dir / "chart.png"
+    assert diagram.exists(), f"diagram.png not found in {images_dir}"
+    assert chart.exists(), f"chart.png not found in {images_dir}"
+
+    # Verify image content was saved correctly
+    assert diagram.read_bytes() == b"fake diagram data"
+    assert chart.read_bytes() == b"fake chart data"
+
+    # Check that markdown has correct relative paths (not /tmp paths)
+    content = md_file.read_text()
+    assert f"{md_file.stem}_images/diagram.png" in content
+    assert f"{md_file.stem}_images/chart.png" in content
+    # Ensure NO temp paths leaked into markdown
+    assert "/tmp" not in content.lower()

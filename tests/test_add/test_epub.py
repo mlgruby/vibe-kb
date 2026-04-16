@@ -3,7 +3,11 @@
 import pytest
 from pathlib import Path
 from click.testing import CliRunner
-from vibe_kb.add.epub import extract_epub_to_markdown, get_epub_metadata
+from vibe_kb.add.epub import (
+    extract_epub_to_markdown,
+    get_epub_metadata,
+    extract_epub_to_chapters,
+)
 from vibe_kb.cli import cli
 from ebooklib import epub
 
@@ -318,3 +322,329 @@ def test_add_epub_rolls_back_markdown_on_metadata_failure(tmp_path):
     )
     assert result.exit_code == 0
     assert "Added book" in result.output
+
+
+def test_extract_epub_to_chapters_creates_directory_structure(tmp_path):
+    """Test that ePub extraction creates directory with index and chapter files."""
+    epub_path = tmp_path / "test.epub"
+    output_dir = tmp_path / "build-llm-from-scratch"
+
+    chapters = [
+        ("Introduction to LLMs", "This is the introduction content."),
+        ("Working with Text Data", "This covers tokenization."),
+        ("Coding Attention Mechanisms", "This explains attention."),
+    ]
+    create_minimal_epub(
+        epub_path,
+        title="Build a Large Language Model",
+        author="Sebastian Raschka",
+        chapters=chapters,
+    )
+
+    result = extract_epub_to_chapters(epub_path, output_dir)
+
+    # Check result metadata
+    assert result["title"] == "Build a Large Language Model"
+    assert result["author"] == "Sebastian Raschka"
+    assert result["chapter_count"] >= 3  # May include navigation items
+    assert result["images_extracted"] == 0
+
+    # Check directory structure
+    assert output_dir.exists()
+    assert (output_dir / "index.md").exists()
+    assert (output_dir / "chapter-01-introduction-to-llms.md").exists()
+    assert (output_dir / "chapter-02-working-with-text-data.md").exists()
+    assert (output_dir / "chapter-03-coding-attention-mechanisms.md").exists()
+
+    # Check index.md content
+    index_content = (output_dir / "index.md").read_text()
+    assert "# Build a Large Language Model" in index_content
+    assert "**Author:** Sebastian Raschka" in index_content
+    assert "[[chapter-01-introduction-to-llms|Chapter 1: Introduction to LLMs]]" in index_content
+    assert (
+        "[[chapter-02-working-with-text-data|Chapter 2: Working with Text Data]]" in index_content
+    )
+
+    # Check chapter file content
+    chapter1_content = (output_dir / "chapter-01-introduction-to-llms.md").read_text()
+    assert "# Introduction to LLMs" in chapter1_content
+    assert "This is the introduction content." in chapter1_content
+
+
+def test_extract_epub_to_chapters_creates_robust_index_with_frontmatter(tmp_path):
+    """Test that index.md includes comprehensive frontmatter and metadata."""
+    epub_path = tmp_path / "test.epub"
+    output_dir = tmp_path / "deep-learning-book"
+
+    chapters = [
+        ("Neural Networks Basics", "Introduction to neural networks."),
+        ("Backpropagation", "How backprop works."),
+    ]
+    create_minimal_epub(
+        epub_path, title="Deep Learning", author="Ian Goodfellow", chapters=chapters
+    )
+
+    extract_epub_to_chapters(epub_path, output_dir)
+
+    index_content = (output_dir / "index.md").read_text()
+
+    # Check frontmatter exists
+    assert index_content.startswith("---")
+    assert "type: book" in index_content
+    assert 'title: "Deep Learning"' in index_content or "title: Deep Learning" in index_content
+    assert 'author: "Ian Goodfellow"' in index_content or "author: Ian Goodfellow" in index_content
+    assert "added:" in index_content
+
+    # Check main content sections
+    assert "# Deep Learning" in index_content
+    assert "**Author:** Ian Goodfellow" in index_content
+    assert "## Table of Contents" in index_content
+
+    # Check wikilinks format
+    assert (
+        "[[chapter-01-neural-networks-basics|Chapter 1: Neural Networks Basics]]" in index_content
+    )
+    assert "[[chapter-02-backpropagation|Chapter 2: Backpropagation]]" in index_content
+
+
+def test_extract_epub_to_chapters_with_images(tmp_path):
+    """Test that image count is included in index frontmatter."""
+    from unittest.mock import patch
+
+    epub_path = tmp_path / "test.epub"
+    output_dir = tmp_path / "book-with-images"
+
+    chapters = [
+        ("Introduction", "See the diagram below."),
+    ]
+    create_minimal_epub(epub_path, title="Visual Book", author="Author", chapters=chapters)
+
+    # Mock image extraction to return 2 images
+    mock_image_result = {
+        "downloaded": 2,
+        "images": [
+            {"original_path": "images/fig1.png", "filename": "fig1.png"},
+            {"original_path": "images/fig2.png", "filename": "fig2.png"},
+        ],
+    }
+
+    with patch("vibe_kb.add.epub.extract_images_from_epub", return_value=mock_image_result):
+        result = extract_epub_to_chapters(epub_path, output_dir)
+
+    assert result["images_extracted"] == 2
+
+    # Check index.md frontmatter includes image count
+    index_content = (output_dir / "index.md").read_text()
+    assert "images: 2" in index_content
+
+
+def test_cli_add_epub_with_split_chapters(tmp_path):
+    """Test CLI integration for adding ePub with chapter splitting."""
+    runner = CliRunner()
+
+    # Create KB first
+    result = runner.invoke(cli, ["create", "test-kb", "--vault-path", str(tmp_path)])
+    assert result.exit_code == 0
+
+    # Create test ePub
+    epub_path = tmp_path / "test_book.epub"
+    chapters = [
+        ("Introduction", "Chapter 1 content."),
+        ("Advanced Topics", "Chapter 2 content."),
+    ]
+    create_minimal_epub(epub_path, title="Split Test Book", author="Test Author", chapters=chapters)
+
+    # Add ePub with --split-chapters flag
+    result = runner.invoke(
+        cli,
+        [
+            "add",
+            "test-kb",
+            "--epub",
+            str(epub_path),
+            "--split-chapters",
+            "--vault-path",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Added book: Split Test Book" in result.output
+
+    # Check directory structure was created
+    kb_dir = tmp_path / "knowledge-bases" / "test-kb"
+    books_dir = kb_dir / "raw" / "books"
+
+    # Find the book directory (it has a date prefix)
+    book_dirs = [d for d in books_dir.iterdir() if d.is_dir() and "split-test-book" in d.name]
+    assert len(book_dirs) == 1
+    book_dir = book_dirs[0]
+
+    assert (book_dir / "index.md").exists()
+    assert (book_dir / "chapter-01-introduction.md").exists()
+    assert (book_dir / "chapter-02-advanced-topics.md").exists()
+
+    # Check metadata file uses .meta.json convention (not metadata.json)
+    assert (book_dir / "index.meta.json").exists(), "Metadata should use index.meta.json"
+    assert not (book_dir / "metadata.json").exists(), "Should not use metadata.json"
+
+
+def test_extract_epub_to_chapters_resolves_relative_image_paths(tmp_path):
+    """Test that relative image paths like ../Images/fig.png are resolved correctly."""
+
+    epub_path = tmp_path / "test.epub"
+    output_dir = tmp_path / "book-with-relative-images"
+
+    # Create ePub with typical structure: OEBPS/Text/chapter.xhtml referencing ../Images/fig.png
+    book = epub.EpubBook()
+    book.set_identifier("test123")
+    book.set_title("Test Book")
+    book.set_language("en")
+    book.add_author("Test Author")
+
+    # Add images in Images directory
+    img1 = epub.EpubImage()
+    img1.file_name = "OEBPS/Images/diagram.png"
+    img1.content = b"diagram_content"
+    book.add_item(img1)
+
+    img2 = epub.EpubImage()
+    img2.file_name = "OEBPS/Images/chart.png"
+    img2.content = b"chart_content"
+    book.add_item(img2)
+
+    # Add chapter in Text directory with relative image reference
+    chapter = epub.EpubHtml(title="Chapter 1", file_name="OEBPS/Text/chapter1.xhtml", lang="en")
+    # Use relative path that goes up one level then into Images
+    chapter.content = """<html><body>
+        <h1>Chapter 1</h1>
+        <p>See the diagram:</p>
+        <img src="../Images/diagram.png" alt="Diagram"/>
+        <p>And the chart:</p>
+        <img src="../Images/chart.png" alt="Chart"/>
+    </body></html>"""
+    book.add_item(chapter)
+
+    book.toc = (chapter,)
+    book.add_item(epub.EpubNcx())
+    book.add_item(epub.EpubNav())
+    book.spine = ["nav", chapter]
+
+    epub.write_epub(str(epub_path), book)
+
+    # Extract chapters
+    result = extract_epub_to_chapters(epub_path, output_dir)
+
+    assert result["images_extracted"] == 2
+
+    # Read the generated chapter markdown
+    chapter_files = list(output_dir.glob("chapter-*.md"))
+    assert len(chapter_files) >= 1
+
+    # Find the chapter file with actual content (not nav.xhtml)
+    chapter_content = ""
+    for cf in chapter_files:
+        content = cf.read_text()
+        if "Chapter 1" in content and len(content) > 100:
+            chapter_content = content
+            break
+
+    assert chapter_content, "Could not find chapter with content"
+
+    # Verify that relative paths were resolved and converted to local references
+    assert "book-with-relative-images_images/diagram.png" in chapter_content
+    assert "book-with-relative-images_images/chart.png" in chapter_content
+
+    # Verify original relative paths are NOT in the content
+    assert "../Images/diagram.png" not in chapter_content
+    assert "../Images/chart.png" not in chapter_content
+
+
+def test_extract_epub_to_chapters_escapes_yaml_frontmatter(tmp_path):
+    """YAML frontmatter is properly escaped to prevent injection attacks."""
+    # Create ePub with malicious YAML injection attempts in title and author
+    malicious_title = "Book: Title\nmalicious_field: injected\n---\n# Injected"
+    malicious_author = "Author: Name\nextra: data"
+
+    epub_path = tmp_path / "malicious.epub"
+    create_minimal_epub(
+        epub_path,
+        title=malicious_title,
+        author=malicious_author,
+        chapters=[("Chapter 1", "Content here")],
+    )
+
+    output_dir = tmp_path / "output"
+    extract_epub_to_chapters(epub_path, output_dir)
+
+    # Read the generated index.md
+    index_path = output_dir / "index.md"
+    assert index_path.exists()
+    content = index_path.read_text()
+
+    # Extract frontmatter more carefully - find the first and second --- on lines by themselves
+    import re
+
+    frontmatter_match = re.match(r"^---\n(.*?)\n---\n", content, re.DOTALL)
+    assert frontmatter_match, "Could not extract frontmatter"
+    frontmatter = frontmatter_match.group(1)
+
+    # Verify that YAML injection was prevented:
+    # 1. Title and author should be JSON-quoted strings (which are valid YAML)
+    assert 'title: "' in content, "Title should be quoted"
+    assert 'author: "' in content, "Author should be quoted"
+
+    # 2. Newlines should be escaped as \\n in the YAML, not literal newlines
+    assert "\\n" in content, "Newlines should be escaped"
+
+    # 3. Verify field structure - count the YAML fields in frontmatter
+    # Should have exactly: type, title, author, chapters, images, added
+    lines = [
+        line.strip()
+        for line in frontmatter.split("\n")
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    yaml_fields = [line.split(":")[0] for line in lines if ":" in line and not line.startswith('"')]
+
+    expected_fields = {"type", "title", "author", "chapters", "images", "added"}
+    actual_fields = set(yaml_fields)
+
+    # The injected fields should NOT be top-level fields
+    assert "malicious_field" not in actual_fields, "malicious_field was injected as a YAML field"
+    assert "extra" not in actual_fields, "'extra' was injected as a YAML field"
+
+    # All expected fields should be present
+    assert expected_fields.issubset(actual_fields), (
+        f"Missing fields. Expected {expected_fields}, got {actual_fields}"
+    )
+
+
+def test_extract_epub_to_chapters_handles_non_latin_titles(tmp_path):
+    """Test that non-Latin chapter titles get valid filenames with fallback."""
+    epub_path = tmp_path / "test.epub"
+    output_dir = tmp_path / "chinese-book"
+
+    # Create ePub with non-Latin chapter titles
+    chapters = [
+        ("第一章", "First chapter content."),  # Chinese
+        ("第二章", "Second chapter content."),  # Chinese
+        ("---", "Punctuation only"),  # Just punctuation
+    ]
+    create_minimal_epub(epub_path, title="Chinese Book", author="Author", chapters=chapters)
+
+    extract_epub_to_chapters(epub_path, output_dir)
+
+    # Check that chapter files were created with valid names
+    chapter_files = sorted([f for f in output_dir.iterdir() if f.name.startswith("chapter-")])
+    assert len(chapter_files) >= 3  # At least 3 chapters (nav might add one more)
+
+    # Verify filenames are valid (not empty after chapter-XX-)
+    for cf in chapter_files:
+        # Should be chapter-XX-something.md, not chapter-XX-.md
+        assert not cf.name.endswith("-.md"), f"Empty slug in filename: {cf.name}"
+        assert cf.name.endswith(".md"), f"Invalid extension: {cf.name}"
+
+    # Verify index.md wikilinks are valid (no broken links)
+    index_content = (output_dir / "index.md").read_text()
+    # Check that wikilinks don't have empty slugs
+    assert "-|" not in index_content, "Wikilinks should not have empty slugs like 'chapter-01-|'"
