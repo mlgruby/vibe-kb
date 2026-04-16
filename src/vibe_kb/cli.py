@@ -434,9 +434,24 @@ def _add_url(kb_dir: Path, url: str):
 
         # Move temp file to final location
         output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Save temp images directory path and stem before renaming markdown
+        temp_stem = temp_path.stem
+        temp_images_dir = temp_path.parent / f"{temp_stem}_images"
+
         temp_path.rename(output_path)
         temp_path = None  # successfully moved
         output_created = True
+
+        # Move images directory if it was created during fetch
+        if temp_images_dir.exists():
+            final_images_dir = output_path.parent / f"{output_path.stem}_images"
+            temp_images_dir.rename(final_images_dir)
+
+            # Update image paths in markdown from temp stem to final stem
+            content = output_path.read_text(encoding="utf-8")
+            content = content.replace(f"{temp_stem}_images/", f"{output_path.stem}_images/")
+            output_path.write_text(content, encoding="utf-8")
 
         # Create metadata
         meta_path = output_path.with_suffix(".meta.json")

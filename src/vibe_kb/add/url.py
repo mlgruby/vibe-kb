@@ -69,9 +69,9 @@ def fetch_url_to_markdown(url: str, output_path: Path) -> Dict[str, str]:
         # Save HTML temporarily for image extraction
         temp_html.write_text(html, encoding="utf-8")
 
-        # Extract images
+        # Extract images (use response.url to handle redirects and preserve path)
         images_dir = output_path.parent / f"{output_path.stem}_images"
-        base_url = f"{parsed.scheme}://{parsed.netloc}"
+        base_url = response.url
         image_result = extract_images_from_html(temp_html, images_dir, base_url)
         images_extracted = image_result["downloaded"]
 
@@ -201,7 +201,7 @@ def _extract_content(soup: BeautifulSoup) -> str:
 def _html_to_markdown(elem: BeautifulSoup) -> str:
     """Convert an HTML element to simplified markdown.
 
-    Handles headings, paragraphs, lists, bold, italic, and code blocks.
+    Handles headings, paragraphs, lists, images, bold, italic, and code blocks.
 
     Args:
         elem: BeautifulSoup element to convert
@@ -212,7 +212,7 @@ def _html_to_markdown(elem: BeautifulSoup) -> str:
     lines = []
 
     for tag in elem.find_all(
-        ["h1", "h2", "h3", "h4", "h5", "h6", "p", "ul", "ol", "pre", "blockquote"],
+        ["h1", "h2", "h3", "h4", "h5", "h6", "p", "ul", "ol", "pre", "blockquote", "img"],
         recursive=True,
     ):
         name = tag.name
@@ -254,6 +254,16 @@ def _html_to_markdown(elem: BeautifulSoup) -> str:
             bq_text = tag.get_text(strip=True)
             if bq_text:
                 lines.append(f"> {bq_text}\n")
+
+        elif name == "img":
+            # Skip images already processed inside paragraphs
+            if tag.parent and tag.parent.name in ("p", "a"):
+                continue
+            # Standalone images (not in paragraphs)
+            src = tag.get("src", "")
+            alt = tag.get("alt", "")
+            if src:
+                lines.append(f"![{alt}]({src})\n")
 
     result = "\n".join(lines)
     # Collapse excessive blank lines
@@ -303,7 +313,7 @@ def _convert_list(tag: BeautifulSoup, ordered: bool = False, depth: int = 0) -> 
 def _inline_markdown(tag: BeautifulSoup) -> str:
     """Convert inline HTML elements to markdown within a paragraph.
 
-    Handles <strong>, <b>, <em>, <i>, <code>, <a>.
+    Handles <strong>, <b>, <em>, <i>, <code>, <a>, <img>.
 
     Args:
         tag: Paragraph or inline element
@@ -335,6 +345,12 @@ def _inline_markdown(tag: BeautifulSoup) -> str:
                 result += f"[{text}]({href})"
             elif text:
                 result += text
+        elif child.name == "img":
+            # Convert img tags to markdown image syntax
+            src = child.get("src", "")
+            alt = child.get("alt", "")
+            if src:
+                result += f"![{alt}]({src})"
         else:
             # Recurse for any other inline elements (skip bare NavigableStrings)
             if hasattr(child, "children"):

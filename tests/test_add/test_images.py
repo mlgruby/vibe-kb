@@ -146,3 +146,44 @@ Another image:
     assert "https://arxiv.org/html/1706.03762v7" not in updated
     assert "1706.03762v7/Figures/image1.png" not in updated
     assert "1706.03762v7/image2.png" not in updated
+
+
+def test_extract_images_from_html_blocks_private_ips(tmp_path):
+    """Image extraction blocks SSRF attempts to private IPs and localhost."""
+    html_with_ssrf = """
+    <html>
+        <body>
+            <img src="http://127.0.0.1/secret" alt="localhost">
+            <img src="http://192.168.1.1/router" alt="private">
+            <img src="http://10.0.0.1/internal" alt="internal">
+            <img src="http://169.254.169.254/metadata" alt="metadata">
+            <img src="https://example.com/safe.png" alt="safe">
+        </body>
+    </html>
+    """
+
+    html_file = tmp_path / "page.html"
+    html_file.write_text(html_with_ssrf)
+    images_dir = tmp_path / "images"
+
+    with patch("vibe_kb.add.images.requests.get") as mock_get:
+        # Only the safe image should be requested
+        mock_response = Mock()
+        mock_response.content = b"safe image data"
+        mock_response.raise_for_status = Mock()
+        mock_get.return_value = mock_response
+
+        result = extract_images_from_html(html_file, images_dir, base_url="https://example.com")
+
+    # Should have attempted to download only the safe image
+    assert result["downloaded"] == 1
+    assert len(result["images"]) == 1
+    assert "safe.png" in result["images"][0]["filename"]
+
+    # Verify private IPs were not requested
+    call_urls = [call[0][0] for call in mock_get.call_args_list]
+    for url in call_urls:
+        assert "127.0.0.1" not in url
+        assert "192.168" not in url
+        assert "10.0.0" not in url
+        assert "169.254.169.254" not in url

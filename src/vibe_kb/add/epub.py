@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 from pathlib import Path
 from typing import Dict, Any
 import re
+import json
 from datetime import date
 import posixpath
 from .images import extract_images_from_epub
@@ -262,10 +263,12 @@ def extract_epub_to_chapters(epub_path: Path, output_dir: Path) -> Dict[str, Any
     index_path = output_dir / "index.md"
     today = date.today().isoformat()
 
+    # Use JSON escaping for strings to prevent YAML injection
+    # JSON strings are valid YAML strings and handle all special characters
     index_markdown = "---\n"
     index_markdown += "type: book\n"
-    index_markdown += f"title: {title}\n"
-    index_markdown += f"author: {author}\n"
+    index_markdown += f"title: {json.dumps(title)}\n"
+    index_markdown += f"author: {json.dumps(author)}\n"
     index_markdown += f"chapters: {len(chapters)}\n"
     index_markdown += f"images: {images_extracted}\n"
     index_markdown += f"added: {today}\n"

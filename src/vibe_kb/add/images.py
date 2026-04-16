@@ -1,6 +1,7 @@
 """Image extraction from HTML and PDF sources."""
 
 import re
+import ipaddress
 from pathlib import Path
 from typing import Dict, List
 from urllib.parse import urljoin, urlparse
@@ -14,6 +15,56 @@ try:
     EPUB_SUPPORT = True
 except ImportError:
     EPUB_SUPPORT = False
+
+
+def _is_safe_url(url: str) -> bool:
+    """Check if URL is safe to fetch (blocks SSRF attempts).
+
+    Blocks:
+    - Private IP ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
+    - Loopback addresses (127.0.0.0/8)
+    - Link-local addresses (169.254.0.0/16, including metadata endpoint)
+    - IPv6 private/loopback ranges
+
+    Args:
+        url: URL to validate
+
+    Returns:
+        True if safe to fetch, False otherwise
+    """
+    try:
+        parsed = urlparse(url)
+
+        # Must be http or https
+        if parsed.scheme not in ("http", "https"):
+            return False
+
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+
+        # Try to resolve as IP address
+        try:
+            ip = ipaddress.ip_address(hostname)
+
+            # Block private, loopback, and link-local addresses
+            if ip.is_private or ip.is_loopback or ip.is_link_local:
+                return False
+
+            # Explicitly block metadata endpoint (169.254.169.254)
+            if str(ip) == "169.254.169.254":
+                return False
+
+        except ValueError:
+            # Not an IP address (hostname) - allow it
+            # DNS rebinding attacks are out of scope
+            pass
+
+        return True
+
+    except Exception:
+        # If parsing fails, err on the side of safety
+        return False
 
 
 def extract_images_from_html(html_file: Path, images_dir: Path, base_url: str = None) -> Dict:
@@ -69,6 +120,10 @@ def extract_images_from_html(html_file: Path, images_dir: Path, base_url: str = 
 
         # Skip data URIs and very small images (icons, spacers)
         if img_url.startswith("data:"):
+            continue
+
+        # Security: Block SSRF attempts to private IPs, localhost, metadata endpoints
+        if not _is_safe_url(img_url):
             continue
 
         # Generate filename from URL

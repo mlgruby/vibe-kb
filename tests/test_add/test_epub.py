@@ -391,8 +391,8 @@ def test_extract_epub_to_chapters_creates_robust_index_with_frontmatter(tmp_path
     # Check frontmatter exists
     assert index_content.startswith("---")
     assert "type: book" in index_content
-    assert "title: Deep Learning" in index_content
-    assert "author: Ian Goodfellow" in index_content
+    assert 'title: "Deep Learning"' in index_content or "title: Deep Learning" in index_content
+    assert 'author: "Ian Goodfellow"' in index_content or "author: Ian Goodfellow" in index_content
     assert "added:" in index_content
 
     # Check main content sections
@@ -554,3 +554,64 @@ def test_extract_epub_to_chapters_resolves_relative_image_paths(tmp_path):
     # Verify original relative paths are NOT in the content
     assert "../Images/diagram.png" not in chapter_content
     assert "../Images/chart.png" not in chapter_content
+
+
+def test_extract_epub_to_chapters_escapes_yaml_frontmatter(tmp_path):
+    """YAML frontmatter is properly escaped to prevent injection attacks."""
+    # Create ePub with malicious YAML injection attempts in title and author
+    malicious_title = "Book: Title\nmalicious_field: injected\n---\n# Injected"
+    malicious_author = "Author: Name\nextra: data"
+
+    epub_path = tmp_path / "malicious.epub"
+    create_minimal_epub(
+        epub_path,
+        title=malicious_title,
+        author=malicious_author,
+        chapters=[("Chapter 1", "Content here")],
+    )
+
+    output_dir = tmp_path / "output"
+    extract_epub_to_chapters(epub_path, output_dir)
+
+    # Read the generated index.md
+    index_path = output_dir / "index.md"
+    assert index_path.exists()
+    content = index_path.read_text()
+
+    # Extract frontmatter more carefully - find the first and second --- on lines by themselves
+    import re
+
+    frontmatter_match = re.match(r"^---\n(.*?)\n---\n", content, re.DOTALL)
+    assert frontmatter_match, "Could not extract frontmatter"
+    frontmatter = frontmatter_match.group(1)
+
+    # Verify that YAML injection was prevented:
+    # 1. Title and author should be JSON-quoted strings (which are valid YAML)
+    assert 'title: "' in content, "Title should be quoted"
+    assert 'author: "' in content, "Author should be quoted"
+
+    # 2. Newlines should be escaped as \\n in the YAML, not literal newlines
+    assert "\\n" in content, "Newlines should be escaped"
+
+    # 3. Verify field structure - count the YAML fields in frontmatter
+    # Should have exactly: type, title, author, chapters, images, added
+    lines = [
+        line.strip()
+        for line in frontmatter.split("\n")
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    yaml_fields = [
+        line.split(":")[0] for line in lines if ":" in line and not line.startswith('"')
+    ]
+
+    expected_fields = {"type", "title", "author", "chapters", "images", "added"}
+    actual_fields = set(yaml_fields)
+
+    # The injected fields should NOT be top-level fields
+    assert "malicious_field" not in actual_fields, "malicious_field was injected as a YAML field"
+    assert "extra" not in actual_fields, "'extra' was injected as a YAML field"
+
+    # All expected fields should be present
+    assert expected_fields.issubset(actual_fields), (
+        f"Missing fields. Expected {expected_fields}, got {actual_fields}"
+    )
