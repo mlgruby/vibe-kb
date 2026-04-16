@@ -487,7 +487,6 @@ def test_cli_add_epub_with_split_chapters(tmp_path):
 
 def test_extract_epub_to_chapters_resolves_relative_image_paths(tmp_path):
     """Test that relative image paths like ../Images/fig.png are resolved correctly."""
-    from unittest.mock import patch, Mock
 
     epub_path = tmp_path / "test.epub"
     output_dir = tmp_path / "book-with-relative-images"
