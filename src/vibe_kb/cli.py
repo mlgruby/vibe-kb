@@ -7,6 +7,7 @@ from .config import KBConfig
 from .add.epub import extract_epub_to_markdown, get_epub_metadata
 from .add.youtube import extract_youtube_transcript
 from .utils.files import generate_filename, create_metadata
+from .search import search_wiki
 
 
 @click.group()
@@ -272,6 +273,42 @@ def _add_youtube(kb_dir: Path, url: str):
 
         click.echo(f"Error: Unexpected error occurred: {str(e)}")
         raise click.Abort()
+
+
+@cli.command()
+@click.argument("kb_name")
+@click.argument("query")
+@click.option("--vault-path", type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.option("--case-sensitive", is_flag=True, help="Case-sensitive search")
+def search(kb_name: str, query: str, vault_path: Optional[Path], case_sensitive: bool):
+    """Search wiki for query string."""
+    if not vault_path:
+        vault_path = Path.home() / "obsidian-vault"
+
+    kb_dir = vault_path / "knowledge-bases" / kb_name
+    wiki_dir = kb_dir / "wiki"
+
+    if not wiki_dir.exists():
+        click.echo(f"Error: No wiki found in '{kb_name}'")
+        raise click.Abort()
+
+    click.echo(f"Searching '{kb_name}' for: {query}")
+
+    try:
+        results = search_wiki(wiki_dir, query, case_sensitive)
+    except ValueError as e:
+        click.echo(f"Error: {str(e)}")
+        raise click.Abort()
+
+    if not results:
+        click.echo("No matches found.")
+        return
+
+    click.echo(f"\nFound {len(results)} match{'es' if len(results) != 1 else ''}:\n")
+
+    for result in results:
+        click.echo(f"{result['file']}:{result['line']}")
+        click.echo(f"  {result['match']}\n")
 
 
 if __name__ == "__main__":
