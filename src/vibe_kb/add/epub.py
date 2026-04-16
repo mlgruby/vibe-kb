@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 from pathlib import Path
 from typing import Dict, Any
 import re
+from .images import extract_images_from_epub
 
 
 def _safe_extract_metadata(book: epub.EpubBook, namespace: str, field: str) -> str:
@@ -36,7 +37,7 @@ def extract_epub_to_markdown(epub_path: Path, output_path: Path) -> Dict[str, An
         output_path: Path to output .md file
 
     Returns:
-        Dictionary with metadata (title, author, chapters)
+        Dictionary with metadata (title, author, chapters, images_extracted)
 
     Raises:
         ValueError: If the ePub file is corrupt or contains no extractable content
@@ -53,6 +54,21 @@ def extract_epub_to_markdown(epub_path: Path, output_path: Path) -> Dict[str, An
     title = _safe_extract_metadata(book, "DC", "title")
     author = _safe_extract_metadata(book, "DC", "creator")
 
+    # Extract images from ePub
+    images_dir = output_path.parent / f"{output_path.stem}_images"
+    image_result = extract_images_from_epub(epub_path, images_dir)
+    images_extracted = image_result["downloaded"]
+
+    # Build mapping of original image paths to local filenames
+    image_map = {}
+    if images_extracted > 0:
+        for img in image_result["images"]:
+            # Map both full path and just filename
+            image_map[img["original_path"]] = img["filename"]
+            # Also map just the filename in case references use relative paths
+            original_filename = Path(img["original_path"]).name
+            image_map[original_filename] = img["filename"]
+
     # Extract chapters
     chapters = []
     for item in book.get_items():
@@ -60,6 +76,25 @@ def extract_epub_to_markdown(epub_path: Path, output_path: Path) -> Dict[str, An
             content = item.get_content()
             # IMPORTANT FIX #7: Specify HTML parser (html.parser is built-in and handles XHTML well)
             soup = BeautifulSoup(content, "html.parser")
+
+            # Convert images to markdown syntax if present
+            if images_extracted > 0:
+                for img_tag in soup.find_all("img"):
+                    src = img_tag.get("src", "")
+                    alt = img_tag.get("alt", "")
+
+                    # Try to find matching image in our extracted images
+                    local_filename = None
+                    for original_path, filename in image_map.items():
+                        if src in original_path or original_path in src or Path(src).name == Path(original_path).name:
+                            local_filename = filename
+                            break
+
+                    if local_filename:
+                        # Replace img tag with markdown syntax
+                        images_dir_relative = f"{output_path.stem}_images"
+                        markdown_img = f"![{alt}]({images_dir_relative}/{local_filename})"
+                        img_tag.replace_with(markdown_img)
 
             # Extract text
             text = soup.get_text()
@@ -88,7 +123,12 @@ def extract_epub_to_markdown(epub_path: Path, output_path: Path) -> Dict[str, An
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(markdown, encoding="utf-8")
 
-    return {"title": title, "author": author, "chapter_count": len(chapters)}
+    return {
+        "title": title,
+        "author": author,
+        "chapter_count": len(chapters),
+        "images_extracted": images_extracted,
+    }
 
 
 def get_epub_metadata(epub_path: Path) -> Dict[str, Any]:

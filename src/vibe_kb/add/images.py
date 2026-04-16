@@ -7,6 +7,13 @@ from urllib.parse import urljoin, urlparse
 import requests
 from bs4 import BeautifulSoup
 
+try:
+    import ebooklib
+    from ebooklib import epub
+    EPUB_SUPPORT = True
+except ImportError:
+    EPUB_SUPPORT = False
+
 
 def extract_images_from_html(html_file: Path, images_dir: Path, base_url: str = None) -> Dict:
     """Extract and download images from HTML file.
@@ -135,6 +142,65 @@ def extract_images_from_pdf(pdf_file: Path, images_dir: Path) -> Dict:
                     )
 
                 downloaded = len(images)
+
+    except Exception as e:
+        return {"images": [], "downloaded": 0, "error": str(e)}
+
+    return {"images": images, "downloaded": downloaded}
+
+
+def extract_images_from_epub(epub_file: Path, images_dir: Path) -> Dict:
+    """Extract embedded images from ePub file.
+
+    Args:
+        epub_file: Path to ePub file
+        images_dir: Directory to save images
+
+    Returns:
+        Dictionary with:
+        - images: List of dicts with original_path, local_path, filename
+        - downloaded: Count of successfully extracted images
+    """
+    if not EPUB_SUPPORT:
+        return {"images": [], "downloaded": 0, "error": "ebooklib not installed"}
+
+    images_dir.mkdir(parents=True, exist_ok=True)
+
+    images = []
+    downloaded = 0
+
+    try:
+        book = epub.read_epub(str(epub_file))
+
+        # Extract all image items
+        for item in book.get_items():
+            if item.get_type() == ebooklib.ITEM_IMAGE:
+                # Get image filename from item name
+                original_path = item.get_name()
+                filename = Path(original_path).name
+
+                # Some ePubs use paths like "OEBPS/images/fig1.png"
+                # We just want the filename part
+                if not filename:
+                    filename = f"image_{len(images)}.png"
+
+                local_path = images_dir / filename
+
+                # Save image content
+                try:
+                    local_path.write_bytes(item.get_content())
+                    downloaded += 1
+
+                    images.append(
+                        {
+                            "original_path": original_path,
+                            "local_path": str(local_path),
+                            "filename": filename,
+                        }
+                    )
+                except Exception:
+                    # Skip failed extractions
+                    continue
 
     except Exception as e:
         return {"images": [], "downloaded": 0, "error": str(e)}
