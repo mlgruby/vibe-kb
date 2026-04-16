@@ -53,7 +53,7 @@ class KBConfig:
         if not config_file.exists():
             raise FileNotFoundError(f"No .kbconfig found in {kb_path}")
 
-        data = json.loads(config_file.read_text())
+        data = json.loads(config_file.read_text(encoding='utf-8'))
         return cls(kb_path=kb_path, **data)
 
     def save(self) -> None:
@@ -62,7 +62,7 @@ class KBConfig:
         data = asdict(self)
         # Remove kb_path from saved data
         data.pop("kb_path")
-        config_file.write_text(json.dumps(data, indent=2))
+        config_file.write_text(json.dumps(data, indent=2), encoding='utf-8')
 
     def update_stats(self, source_count: int, article_count: int) -> None:
         """Update statistics and save.
