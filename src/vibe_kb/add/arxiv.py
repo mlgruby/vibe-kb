@@ -128,8 +128,12 @@ def arxiv_to_markdown(arxiv_id: str, output_path: Path) -> Dict:
             temp_html.write_bytes(response.content)
 
             # Extract images from HTML
+            # Use response.url to get the actual URL (includes version like v7)
             images_dir = output_path.parent / f"{output_path.stem}_images"
-            base_url = f"https://arxiv.org/html/{arxiv_id}/"
+            # response.url will be like https://arxiv.org/html/1706.03762v7
+            base_url = response.url if response.url else f"https://arxiv.org/html/{arxiv_id}/"
+            if not base_url.endswith("/"):
+                base_url += "/"
             image_result = extract_images_from_html(temp_html, images_dir, base_url)
 
             # Convert to markdown

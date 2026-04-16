@@ -43,6 +43,14 @@ def extract_images_from_html(html_file: Path, images_dir: Path, base_url: str = 
 
         # Build absolute URL
         if base_url:
+            # Handle arXiv's versioned paths (e.g., 1706.03762v7/Figures/...)
+            # If src starts with arxiv ID pattern, it's already relative to the base HTML directory
+            if re.match(r"\d{4}\.\d{4,5}v\d+/", src):
+                # Extract the directory part after the versioned ID
+                # E.g., from "1706.03762v7/Figures/image.png" get "/Figures/image.png"
+                parts = src.split("/", 1)
+                if len(parts) > 1:
+                    src = parts[1]  # Get everything after first /
             img_url = urljoin(base_url, src)
         else:
             img_url = src
