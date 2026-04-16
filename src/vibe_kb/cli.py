@@ -203,13 +203,8 @@ def _add_youtube(kb_dir: Path, url: str):
     click.echo(f"Extracting transcript from: {url}")
 
     try:
-        # Generate filename from URL first (will be updated after extraction)
-        from pathlib import Path as TempPath
-        import tempfile
-
-        # Create a temporary file for extraction
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as tmp_file:
-            temp_path = TempPath(tmp_file.name)
+        # Extract transcript to temp file
+        temp_path = Path("/tmp/temp.md")
 
         # Extract transcript
         result = extract_youtube_transcript(url, temp_path)
