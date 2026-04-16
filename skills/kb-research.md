@@ -31,7 +31,7 @@ Use the search command to find relevant content:
 
 ```bash
 kb search <kb_name> "<key_terms_from_question>" \
-  --vault-path "/Users/satyasheel/Insync/satyasheel@ymail.com/Dropbox/obsidian-satya/"
+  --vault-path "~/obsidian-vault/"
 ```
 
 **B. Check indices**
@@ -101,7 +101,7 @@ Format the output with proper frontmatter:
 type: research-output
 question: "<original_question>"
 date: YYYY-MM-DD
-sources: [[[source1]], [[source2]], [[source3]]]
+sources: ["[[source1]]", "[[source2]]", "[[source3]]"]
 ---
 ```
 
@@ -187,7 +187,7 @@ Standard research note with sections, citations, and wikilinks.
 ```
 
 ### Concept Map
-```markdown
+````markdown
 ```mermaid
 graph TD
     A[Question] --> B[Concept1]
@@ -195,7 +195,7 @@ graph TD
     B --> D[Source1]
     C --> D
 ```
-```
+````
 
 ## Notes
 

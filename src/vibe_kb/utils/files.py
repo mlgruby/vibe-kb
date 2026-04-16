@@ -31,6 +31,9 @@ def generate_filename(title: str, extension: str = ".md") -> str:
     # Remove leading/trailing hyphens
     slug = slug.strip('-')
 
+    if not slug:
+        raise ValueError("Title must contain at least one alphanumeric character")
+
     today = date.today().isoformat()
     return f"{today}-{slug}{extension}"
 

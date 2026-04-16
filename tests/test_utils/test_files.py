@@ -42,3 +42,15 @@ def test_create_metadata(tmp_path):
     assert data["title"] == "Test Article"
     assert data["author"] == "John Doe"
     assert "added_date" in data
+
+
+def test_generate_filename_raises_for_punctuation_only_title():
+    """Title that sanitizes to empty slug (e.g. only punctuation) must raise."""
+    with pytest.raises(ValueError, match="alphanumeric"):
+        generate_filename("!!!")
+
+
+def test_generate_filename_raises_for_emoji_only_title():
+    """Emoji-only title produces empty slug and must raise."""
+    with pytest.raises(ValueError, match="alphanumeric"):
+        generate_filename("🎉🚀✨")

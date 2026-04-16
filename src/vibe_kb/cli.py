@@ -42,8 +42,8 @@ def cli():
 @click.argument("name")
 @click.option(
     "--vault-path",
-    type=click.Path(exists=True, file_okay=False, path_type=Path),
-    help="Obsidian vault path (default: use KB_VAULT_PATH env var)"
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Obsidian vault path (default: ~/obsidian-vault)"
 )
 @click.option("--topic", help="Research topic")
 def create(name: str, vault_path: Path, topic: str):
@@ -51,7 +51,7 @@ def create(name: str, vault_path: Path, topic: str):
     _validate_kb_name(name)
 
     if not vault_path:
-        vault_path = Path.home() / "obsidian-vault"  # Fallback
+        vault_path = Path.home() / "obsidian-vault"
 
     kb_dir = vault_path / "knowledge-bases" / name
 
@@ -118,7 +118,7 @@ Where this concept is used
 ## Open Questions
 Areas for further research
 """
-    (template_dir / "concept-article.md").write_text(concept_template)
+    (template_dir / "concept-article.md").write_text(concept_template, encoding='utf-8')
 
     # Source summary template
     summary_template = """---
@@ -149,7 +149,7 @@ authors: names
 Things to explore further
 """
     for source_type in ["article", "paper", "book", "video"]:
-        (template_dir / f"{source_type}-summary.md").write_text(summary_template)
+        (template_dir / f"{source_type}-summary.md").write_text(summary_template, encoding='utf-8')
 
 
 @cli.command()
@@ -178,7 +178,7 @@ def add(kb_name: str, epub_path: Optional[Path], youtube_url: Optional[str], vau
     elif youtube_url:
         _add_youtube(kb_dir, youtube_url)
     else:
-        click.echo("Error: No source specified. Use --epub, --url, or --youtube")
+        click.echo("Error: No source specified. Use --epub or --youtube")
         raise click.Abort()
 
 
