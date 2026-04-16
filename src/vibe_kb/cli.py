@@ -177,6 +177,12 @@ def _add_epub(kb_dir: Path, epub_path: Path):
     filename = generate_filename(metadata['title'])
     output_path = kb_dir / "raw" / "books" / filename
 
+    # Check for existing source to prevent silent overwrite
+    if output_path.exists():
+        click.echo(f"Error: Source already exists at {output_path}")
+        click.echo("Use --force to overwrite.")
+        raise click.Abort()
+
     # Extract to markdown with error handling
     try:
         result = extract_epub_to_markdown(epub_path, output_path)
@@ -202,10 +208,12 @@ def _add_epub(kb_dir: Path, epub_path: Path):
 
 def _add_youtube(kb_dir: Path, url: str):
     """Add YouTube video to knowledge base."""
-    # Validate URL format
-    if not (url.startswith(('http://', 'https://')) or
-            'youtube.com' in url or 'youtu.be' in url):
-        click.echo("Error: Invalid YouTube URL format")
+    # Validate URL format: must be HTTPS and a known YouTube host
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    allowed_hosts = {'youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'}
+    if parsed.scheme != 'https' or parsed.hostname not in allowed_hosts:
+        click.echo("Error: Invalid YouTube URL. Must be https://youtube.com/... or https://youtu.be/...")
         raise click.Abort()
 
     click.echo(f"Extracting transcript from: {url}")
@@ -224,6 +232,12 @@ def _add_youtube(kb_dir: Path, url: str):
         # Generate filename
         filename = generate_filename(result['title'])
         output_path = kb_dir / "raw" / "videos" / filename
+
+        # Check for existing source to prevent silent overwrite
+        if output_path.exists():
+            click.echo(f"Error: Source already exists at {output_path}")
+            click.echo("Use --force to overwrite.")
+            raise ValueError(f"Source already exists: {output_path}")
 
         # Move temp file to final location
         output_path.parent.mkdir(parents=True, exist_ok=True)

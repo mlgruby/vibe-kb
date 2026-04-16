@@ -40,8 +40,17 @@ def search_wiki(wiki_dir: Path, query: str, case_sensitive: bool = False) -> Lis
 
     # Search all .md files recursively
     for md_file in wiki_dir.rglob("*.md"):
-        # Skip hidden files and symlinks for security
-        if md_file.name.startswith('.') or md_file.is_symlink():
+        # Skip symlinks (security), hidden files, underscore files,
+        # and files inside hidden/underscore directories (e.g. .templates/)
+        if md_file.is_symlink():
+            continue
+        if md_file.name.startswith(('.', '_')):
+            continue
+        try:
+            relative = md_file.relative_to(wiki_dir)
+            if any(part.startswith(('.', '_')) for part in relative.parts[:-1]):
+                continue
+        except ValueError:
             continue
 
         try:

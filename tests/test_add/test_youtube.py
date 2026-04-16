@@ -357,3 +357,20 @@ def test_cli_add_no_source_specified(tmp_path):
 
     assert result.exit_code != 0
     assert "no source specified" in result.output.lower()
+
+
+def test_cli_add_youtube_rejects_non_youtube_https(tmp_path):
+    """Test that https://example.com is rejected (URL logic bug fix)."""
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["create", "test-kb", "--vault-path", str(tmp_path)])
+    assert result.exit_code == 0
+
+    result = runner.invoke(cli, [
+        "add", "test-kb",
+        "--youtube", "https://example.com/watch?v=dQw4w9WgXcQ",
+        "--vault-path", str(tmp_path)
+    ])
+
+    assert result.exit_code != 0
+    assert "invalid" in result.output.lower()

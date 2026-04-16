@@ -269,3 +269,27 @@ def test_cli_add_epub_corrupt_file(tmp_path):
 
     assert result.exit_code != 0
     assert "error" in result.output.lower() or "invalid" in result.output.lower()
+
+
+def test_cli_add_epub_prevents_overwrite(tmp_path):
+    """Test that adding the same epub twice fails without --force."""
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["create", "test-kb", "--vault-path", str(tmp_path)])
+    assert result.exit_code == 0
+
+    epub_path = tmp_path / "test_book.epub"
+    create_minimal_epub(epub_path, title="Duplicate Book", author="Author")
+
+    # First add — should succeed
+    result = runner.invoke(cli, [
+        "add", "test-kb", "--epub", str(epub_path), "--vault-path", str(tmp_path)
+    ])
+    assert result.exit_code == 0
+
+    # Second add — should fail with overwrite error
+    result = runner.invoke(cli, [
+        "add", "test-kb", "--epub", str(epub_path), "--vault-path", str(tmp_path)
+    ])
+    assert result.exit_code != 0
+    assert "already exists" in result.output

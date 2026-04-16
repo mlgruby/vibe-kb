@@ -311,3 +311,41 @@ def test_search_wiki_handles_crlf(tmp_path):
     assert len(results) == 1
     assert results[0]['line'] == 2
     assert '\r' not in results[0]['match'], "Match should not contain carriage return"
+
+
+def test_search_wiki_excludes_templates_directory(tmp_path):
+    """Test that .templates/ directory is excluded from search results."""
+    wiki_dir = tmp_path / "wiki"
+    wiki_dir.mkdir()
+
+    # Create a real article
+    (wiki_dir / "concepts").mkdir()
+    (wiki_dir / "concepts" / "transformers.md").write_text("Transformers use attention mechanisms.")
+
+    # Create a template (should be excluded)
+    templates_dir = wiki_dir / ".templates"
+    templates_dir.mkdir()
+    (templates_dir / "concept-article.md").write_text("Transformers template placeholder.")
+
+    results = search_wiki(wiki_dir, "transformers")
+
+    assert len(results) == 1
+    assert ".templates" not in results[0]['file']
+    assert results[0]['file'].startswith("concepts")
+
+
+def test_search_wiki_excludes_underscore_directories(tmp_path):
+    """Test that _archived/ and similar directories are excluded from search."""
+    wiki_dir = tmp_path / "wiki"
+    wiki_dir.mkdir()
+
+    (wiki_dir / "concepts").mkdir()
+    (wiki_dir / "concepts" / "ml.md").write_text("Machine learning concepts.", encoding='utf-8')
+
+    archived_dir = wiki_dir / "_archived"
+    archived_dir.mkdir()
+    (archived_dir / "old.md").write_text("Machine learning old article.", encoding='utf-8')
+
+    results = search_wiki(wiki_dir, "machine learning")
+
+    assert all("_archived" not in r['file'] for r in results)
