@@ -1,5 +1,6 @@
 """CLI entry point for kb command."""
 import click
+import tempfile
 from pathlib import Path
 from typing import Optional
 from .config import KBConfig
@@ -200,22 +201,33 @@ def _add_epub(kb_dir: Path, epub_path: Path):
 
 def _add_youtube(kb_dir: Path, url: str):
     """Add YouTube video to knowledge base."""
+    # Validate URL format
+    if not (url.startswith(('http://', 'https://')) or
+            'youtube.com' in url or 'youtu.be' in url):
+        click.echo("Error: Invalid YouTube URL format")
+        raise click.Abort()
+
     click.echo(f"Extracting transcript from: {url}")
 
+    temp_path = None
+    output_path = None
+
     try:
-        # Extract transcript to temp file
-        temp_path = Path("/tmp/temp.md")
+        # Create temp file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as tmp:
+            temp_path = Path(tmp.name)
 
         # Extract transcript
         result = extract_youtube_transcript(url, temp_path)
 
-        # Generate filename from title
+        # Generate filename
         filename = generate_filename(result['title'])
         output_path = kb_dir / "raw" / "videos" / filename
 
         # Move temp file to final location
         output_path.parent.mkdir(parents=True, exist_ok=True)
         temp_path.rename(output_path)
+        temp_path = None  # Successfully moved, don't clean up
 
         # Create metadata
         meta_path = output_path.with_suffix('.meta.json')
@@ -233,9 +245,31 @@ def _add_youtube(kb_dir: Path, url: str):
         click.echo(f"  Location: {output_path}")
 
     except ValueError as e:
+        # Clean up temp file if it still exists
+        if temp_path and temp_path.exists():
+            temp_path.unlink()
+
+        # Clean up output file if metadata creation failed
+        if output_path and output_path.exists():
+            output_path.unlink()
+            meta_path = output_path.with_suffix('.meta.json')
+            if meta_path.exists():
+                meta_path.unlink()
+
         click.echo(f"Error: {str(e)}")
         raise click.Abort()
     except Exception as e:
+        # Clean up temp file if it still exists
+        if temp_path and temp_path.exists():
+            temp_path.unlink()
+
+        # Clean up output file if metadata creation failed
+        if output_path and output_path.exists():
+            output_path.unlink()
+            meta_path = output_path.with_suffix('.meta.json')
+            if meta_path.exists():
+                meta_path.unlink()
+
         click.echo(f"Error: Unexpected error occurred: {str(e)}")
         raise click.Abort()
 

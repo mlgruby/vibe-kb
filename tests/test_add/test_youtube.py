@@ -1,6 +1,5 @@
 """Tests for YouTube transcript extraction."""
 import pytest
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 from click.testing import CliRunner
 from vibe_kb.add.youtube import extract_youtube_transcript, _parse_vtt
@@ -292,6 +291,54 @@ def test_cli_add_youtube_no_subtitles(tmp_path):
 
         assert result.exit_code != 0
         assert "error" in result.output.lower()
+
+
+def test_extract_youtube_subtitle_download_failure(tmp_path):
+    """Test handling subtitle download failure after info extraction succeeds."""
+    output_path = tmp_path / "video.md"
+
+    with patch('vibe_kb.add.youtube.yt_dlp.YoutubeDL') as mock_ydl_class:
+        mock_ydl = MagicMock()
+
+        # Info extraction succeeds
+        mock_info = {
+            'title': 'Test Video',
+            'channel': 'Test Channel',
+            'duration': 300,
+            'upload_date': '20240101',
+            'description': 'Test description',
+            'subtitles': {'en': [{'url': 'http://example.com/subtitle.vtt'}]},
+            'automatic_captions': {}
+        }
+
+        mock_ydl.extract_info.return_value = mock_info
+        # Simulate urlopen failure during subtitle download
+        mock_ydl.urlopen.side_effect = Exception("Network error during subtitle download")
+        mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+
+        with pytest.raises(ValueError) as exc_info:
+            extract_youtube_transcript("https://youtube.com/watch?v=test", output_path)
+
+        assert "failed to extract" in str(exc_info.value).lower()
+
+
+def test_cli_add_youtube_invalid_url(tmp_path):
+    """Test CLI error handling for invalid YouTube URL."""
+    runner = CliRunner()
+
+    # Create KB first
+    result = runner.invoke(cli, ["create", "test-kb", "--vault-path", str(tmp_path)])
+    assert result.exit_code == 0
+
+    # Try to add with invalid URL
+    result = runner.invoke(cli, [
+        "add", "test-kb",
+        "--youtube", "not-a-url",
+        "--vault-path", str(tmp_path)
+    ])
+
+    assert result.exit_code != 0
+    assert "invalid" in result.output.lower()
 
 
 def test_cli_add_no_source_specified(tmp_path):

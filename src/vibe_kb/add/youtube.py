@@ -27,6 +27,7 @@ def extract_youtube_transcript(
         'subtitleslangs': ['en'],
         'skip_download': True,
         'quiet': True,
+        'socket_timeout': 30,  # Prevent indefinite hangs
     }
 
     try:
@@ -45,10 +46,9 @@ def extract_youtube_transcript(
             if not subtitles:
                 raise ValueError("No English subtitles available for this video")
 
-            # Download subtitle content
+            # Download subtitle content (reuse same YoutubeDL instance)
             subtitle_url = subtitles[0]['url']
-            with yt_dlp.YoutubeDL({'quiet': True}) as ydl2:
-                subtitle_content = ydl2.urlopen(subtitle_url).read().decode('utf-8')
+            subtitle_content = ydl.urlopen(subtitle_url).read().decode('utf-8')
 
             # Parse VTT format
             transcript = _parse_vtt(subtitle_content)
