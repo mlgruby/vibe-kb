@@ -50,6 +50,9 @@ def extract_images_from_html(html_file: Path, images_dir: Path, base_url: str = 
         if not src:
             continue
 
+        # Store the original src attribute (may be relative)
+        original_src = src
+
         # Build absolute URL
         if base_url:
             # Handle arXiv's versioned paths (e.g., 1706.03762v7/Figures/...)
@@ -98,7 +101,8 @@ def extract_images_from_html(html_file: Path, images_dir: Path, base_url: str = 
 
             images.append(
                 {
-                    "original_url": img_url,
+                    "original_url": img_url,  # Absolute URL
+                    "original_src": original_src,  # Raw src attribute (may be relative)
                     "local_path": str(local_path),
                     "alt_text": img_tag.get("alt", ""),
                     "filename": filename,
@@ -252,13 +256,22 @@ def update_markdown_image_links(
     """
     for img in images:
         original_url = img["original_url"]
+        original_src = img.get("original_src", original_url)  # Fall back to URL if not present
         filename = img["filename"]
         local_ref = f"{images_dir_relative}/{filename}"
 
-        # Replace image URLs in markdown
-        # Pattern: ![alt](url) or <img src="url">
+        # Replace both absolute URL and original src in markdown
+        # This handles cases where converters emit relative paths vs absolute URLs
+
+        # Replace absolute URL forms
         markdown_content = markdown_content.replace(f"]({original_url})", f"]({local_ref})")
         markdown_content = markdown_content.replace(f'src="{original_url}"', f'src="{local_ref}"')
         markdown_content = markdown_content.replace(f"src='{original_url}'", f"src='{local_ref}'")
+
+        # Also replace original src forms (may be relative)
+        if original_src != original_url:
+            markdown_content = markdown_content.replace(f"]({original_src})", f"]({local_ref})")
+            markdown_content = markdown_content.replace(f'src="{original_src}"', f'src="{local_ref}"')
+            markdown_content = markdown_content.replace(f"src='{original_src}'", f"src='{local_ref}'")
 
     return markdown_content
