@@ -337,54 +337,17 @@ def stats(kb_name: str, vault_path: Optional[Path]):
 
     # Count sources
     raw_dir = kb_dir / "raw"
-    source_files = []
-    if raw_dir.exists():
-        try:
-            # Count markdown and PDF files, skip symlinks
-            for pattern in ["*.md", "*.pdf"]:
-                for file in raw_dir.rglob(pattern):
-                    if not file.is_symlink() and not file.name.startswith('.'):
-                        source_files.append(file)
-        except (PermissionError, OSError):
-            # If we can't read raw dir, just use empty list
-            pass
+    source_files = list(raw_dir.rglob("*.md")) + list(raw_dir.rglob("*.pdf"))
 
     # Count wiki articles
     wiki_dir = kb_dir / "wiki"
-    wiki_files = []
-    if wiki_dir.exists():
-        try:
-            for md_file in wiki_dir.rglob("*.md"):
-                # Skip symlinks
-                if md_file.is_symlink():
-                    continue
-
-                # Skip if file name starts with . or _
-                if md_file.name.startswith(('.', '_')):
-                    continue
-
-                # Skip if any parent directory starts with . or _
-                try:
-                    relative = md_file.relative_to(wiki_dir)
-                    if any(part.startswith(('.', '_')) for part in relative.parts[:-1]):
-                        continue
-                except ValueError:
-                    continue
-
-                wiki_files.append(md_file)
-        except (PermissionError, OSError):
-            # If we can't read wiki dir, just use empty list
-            pass
+    wiki_files = [f for f in wiki_dir.rglob("*.md") if not f.name.startswith(('_', '.'))]
 
     # Count words in wiki
     total_words = 0
     for wiki_file in wiki_files:
-        try:
-            content = wiki_file.read_text(encoding='utf-8')
-            total_words += len(content.split())
-        except (UnicodeDecodeError, PermissionError, OSError):
-            # Skip files with read errors
-            continue
+        content = wiki_file.read_text(encoding='utf-8')
+        total_words += len(content.split())
 
     # Display stats
     click.echo(f"\nKnowledge Base: {config.name}")
