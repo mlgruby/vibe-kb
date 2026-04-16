@@ -9,6 +9,7 @@ from .config import KBConfig
 from .add.epub import extract_epub_to_markdown, get_epub_metadata
 from .add.youtube import extract_youtube_transcript
 from .add.url import fetch_url_to_markdown
+from .add.arxiv import search_arxiv, arxiv_to_markdown
 from .utils.files import generate_filename, create_metadata
 from .search import search_wiki
 
@@ -161,6 +162,8 @@ Things to explore further
 )
 @click.option("--youtube", "youtube_url", type=str, help="YouTube video URL")
 @click.option("--url", "article_url", type=str, help="Web article URL")
+@click.option("--arxiv", "arxiv_query", type=str, help="arXiv search query")
+@click.option("--limit", default=10, type=int, help="Maximum number of arXiv papers (default: 10)")
 @click.option(
     "--vault-path",
     type=click.Path(exists=True, file_okay=False, path_type=Path),
@@ -171,6 +174,8 @@ def add(
     epub_path: Optional[Path],
     youtube_url: Optional[str],
     article_url: Optional[str],
+    arxiv_query: Optional[str],
+    limit: int,
     vault_path: Optional[Path],
 ):
     """Add source material to knowledge base."""
@@ -190,8 +195,10 @@ def add(
         _add_youtube(kb_dir, youtube_url)
     elif article_url:
         _add_url(kb_dir, article_url)
+    elif arxiv_query:
+        _add_arxiv(kb_dir, arxiv_query, limit)
     else:
-        click.echo("Error: No source specified. Use --epub, --url, or --youtube")
+        click.echo("Error: No source specified. Use --epub, --url, --youtube, or --arxiv")
         raise click.Abort()
 
 
@@ -414,6 +421,62 @@ def _add_url(kb_dir: Path, url: str):
             meta_path = output_path.with_suffix(".meta.json")
             if meta_path.exists():
                 meta_path.unlink()
+        click.echo(f"Error: {str(e)}")
+        raise click.Abort()
+
+
+def _add_arxiv(kb_dir: Path, query: str, limit: int):
+    """Add arXiv papers to knowledge base.
+
+    Searches arXiv for papers matching query and converts them to markdown
+    using MarkItDown (HTML preferred, PDF fallback).
+    """
+    click.echo(f"Searching arXiv for: {query}")
+
+    try:
+        results = search_arxiv(query, limit=limit)
+
+        if not results:
+            click.echo("No papers found matching query")
+            return
+
+        click.echo(f"Found {len(results)} paper(s)\n")
+
+        for i, paper in enumerate(results, 1):
+            click.echo(f"[{i}/{len(results)}] Processing: {paper['title'][:80]}...")
+
+            # Generate filename
+            filename = generate_filename(paper["title"])
+            output_path = kb_dir / "raw" / "papers" / filename
+
+            # Check if already exists
+            if output_path.exists():
+                click.echo(f"  ⊘ Skipped (already exists)")
+                continue
+
+            # Convert to markdown
+            result = arxiv_to_markdown(paper["arxiv_id"], output_path)
+
+            if result["success"]:
+                # Create metadata
+                meta_path = output_path.with_suffix(".meta.json")
+                create_metadata(
+                    meta_path,
+                    source_url=f"https://arxiv.org/abs/{paper['arxiv_id']}",
+                    source_type="paper",
+                    title=paper["title"],
+                    author=", ".join(paper["authors"]),
+                    arxiv_id=paper["arxiv_id"],
+                    format=result["format"],
+                )
+
+                click.echo(f"  ✓ Added ({result['format']} format)")
+            else:
+                click.echo(f"  ✗ Failed: {result.get('error', 'Unknown error')}")
+
+        click.echo(f"\n✓ Processed {len(results)} papers")
+
+    except Exception as e:
         click.echo(f"Error: {str(e)}")
         raise click.Abort()
 
