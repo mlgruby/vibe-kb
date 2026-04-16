@@ -3,7 +3,9 @@
     "allow": [
       "Bash(uv sync:*)",
       "Bash(uv run:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(gh pr:*)",
+      "Bash(gh run:*)"
     ]
   }
 }

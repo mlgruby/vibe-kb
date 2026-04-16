@@ -1,4 +1,5 @@
 """arXiv paper fetching and download."""
+
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import List, Dict
@@ -30,7 +31,7 @@ def search_arxiv(query: str, limit: int = 10) -> List[Dict]:
         "start": 0,
         "max_results": limit,
         "sortBy": "relevance",
-        "sortOrder": "descending"
+        "sortOrder": "descending",
     }
 
     response = requests.get(base_url, params=params)
@@ -61,13 +62,15 @@ def search_arxiv(query: str, limit: int = 10) -> List[Dict]:
         # Build PDF URL
         pdf_url = f"http://arxiv.org/pdf/{arxiv_id}.pdf"
 
-        results.append({
-            "arxiv_id": arxiv_id,
-            "title": title,
-            "authors": authors,
-            "abstract": abstract,
-            "pdf_url": pdf_url
-        })
+        results.append(
+            {
+                "arxiv_id": arxiv_id,
+                "title": title,
+                "authors": authors,
+                "abstract": abstract,
+                "pdf_url": pdf_url,
+            }
+        )
 
     return results
 
