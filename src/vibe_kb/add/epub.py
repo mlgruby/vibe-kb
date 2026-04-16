@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Dict, Any
 import re
 from datetime import date
+import posixpath
 from .images import extract_images_from_epub
 
 
@@ -78,22 +79,31 @@ def extract_epub_to_markdown(epub_path: Path, output_path: Path) -> Dict[str, An
             # IMPORTANT FIX #7: Specify HTML parser (html.parser is built-in and handles XHTML well)
             soup = BeautifulSoup(content, "html.parser")
 
+            # Get the current document's path for resolving relative image references
+            document_path = item.get_name()  # e.g., "OEBPS/Text/chapter1.xhtml"
+            document_dir = posixpath.dirname(document_path)  # e.g., "OEBPS/Text"
+
             # Convert images to markdown syntax if present
             if images_extracted > 0:
                 for img_tag in soup.find_all("img"):
                     src = img_tag.get("src", "")
                     alt = img_tag.get("alt", "")
 
-                    # Try to find matching image in our extracted images
                     local_filename = None
-                    for original_path, filename in image_map.items():
-                        if (
-                            src in original_path
-                            or original_path in src
-                            or Path(src).name == Path(original_path).name
-                        ):
-                            local_filename = filename
-                            break
+
+                    # Resolve relative image path to absolute ePub path
+                    if src:
+                        # Resolve src relative to the current document's directory
+                        resolved_path = posixpath.normpath(
+                            posixpath.join(document_dir, src)
+                        )
+
+                        # Look up the resolved path in image_map
+                        if resolved_path in image_map:
+                            local_filename = image_map[resolved_path]
+                        # Fall back to basename matching
+                        elif Path(src).name in image_map:
+                            local_filename = image_map[Path(src).name]
 
                     if local_filename:
                         # Replace img tag with markdown syntax
@@ -179,6 +189,10 @@ def extract_epub_to_chapters(epub_path: Path, output_dir: Path) -> Dict[str, Any
             content = item.get_content()
             soup = BeautifulSoup(content, "html.parser")
 
+            # Get the current document's path for resolving relative image references
+            document_path = item.get_name()  # e.g., "OEBPS/Text/chapter1.xhtml"
+            document_dir = posixpath.dirname(document_path)  # e.g., "OEBPS/Text"
+
             # Convert images to markdown syntax if present
             if images_extracted > 0:
                 for img_tag in soup.find_all("img"):
@@ -186,14 +200,21 @@ def extract_epub_to_chapters(epub_path: Path, output_dir: Path) -> Dict[str, Any
                     alt = img_tag.get("alt", "")
 
                     local_filename = None
-                    for original_path, filename in image_map.items():
-                        if (
-                            src in original_path
-                            or original_path in src
-                            or Path(src).name == Path(original_path).name
-                        ):
-                            local_filename = filename
-                            break
+
+                    # Resolve relative image path to absolute ePub path
+                    if src:
+                        # Resolve src relative to the current document's directory
+                        resolved_path = posixpath.normpath(
+                            posixpath.join(document_dir, src)
+                        )
+
+                        # Look up the resolved path in image_map
+                        if resolved_path in image_map:
+                            local_filename = image_map[resolved_path]
+                        # Fall back to basename matching with warning comment
+                        elif Path(src).name in image_map:
+                            # This is less reliable but handles edge cases
+                            local_filename = image_map[Path(src).name]
 
                     if local_filename:
                         images_dir_relative = f"{output_dir.stem}_images"

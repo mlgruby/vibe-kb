@@ -483,3 +483,77 @@ def test_cli_add_epub_with_split_chapters(tmp_path):
     assert (book_dir / "index.md").exists()
     assert (book_dir / "chapter-01-introduction.md").exists()
     assert (book_dir / "chapter-02-advanced-topics.md").exists()
+
+
+def test_extract_epub_to_chapters_resolves_relative_image_paths(tmp_path):
+    """Test that relative image paths like ../Images/fig.png are resolved correctly."""
+    from unittest.mock import patch, Mock
+
+    epub_path = tmp_path / "test.epub"
+    output_dir = tmp_path / "book-with-relative-images"
+
+    # Create ePub with typical structure: OEBPS/Text/chapter.xhtml referencing ../Images/fig.png
+    book = epub.EpubBook()
+    book.set_identifier("test123")
+    book.set_title("Test Book")
+    book.set_language("en")
+    book.add_author("Test Author")
+
+    # Add images in Images directory
+    img1 = epub.EpubImage()
+    img1.file_name = "OEBPS/Images/diagram.png"
+    img1.content = b"diagram_content"
+    book.add_item(img1)
+
+    img2 = epub.EpubImage()
+    img2.file_name = "OEBPS/Images/chart.png"
+    img2.content = b"chart_content"
+    book.add_item(img2)
+
+    # Add chapter in Text directory with relative image reference
+    chapter = epub.EpubHtml(
+        title="Chapter 1", file_name="OEBPS/Text/chapter1.xhtml", lang="en"
+    )
+    # Use relative path that goes up one level then into Images
+    chapter.content = """<html><body>
+        <h1>Chapter 1</h1>
+        <p>See the diagram:</p>
+        <img src="../Images/diagram.png" alt="Diagram"/>
+        <p>And the chart:</p>
+        <img src="../Images/chart.png" alt="Chart"/>
+    </body></html>"""
+    book.add_item(chapter)
+
+    book.toc = (chapter,)
+    book.add_item(epub.EpubNcx())
+    book.add_item(epub.EpubNav())
+    book.spine = ["nav", chapter]
+
+    epub.write_epub(str(epub_path), book)
+
+    # Extract chapters
+    result = extract_epub_to_chapters(epub_path, output_dir)
+
+    assert result["images_extracted"] == 2
+
+    # Read the generated chapter markdown
+    chapter_files = list(output_dir.glob("chapter-*.md"))
+    assert len(chapter_files) >= 1
+
+    # Find the chapter file with actual content (not nav.xhtml)
+    chapter_content = ""
+    for cf in chapter_files:
+        content = cf.read_text()
+        if "Chapter 1" in content and len(content) > 100:
+            chapter_content = content
+            break
+
+    assert chapter_content, "Could not find chapter with content"
+
+    # Verify that relative paths were resolved and converted to local references
+    assert "book-with-relative-images_images/diagram.png" in chapter_content
+    assert "book-with-relative-images_images/chart.png" in chapter_content
+
+    # Verify original relative paths are NOT in the content
+    assert "../Images/diagram.png" not in chapter_content
+    assert "../Images/chart.png" not in chapter_content
