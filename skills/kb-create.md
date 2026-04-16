@@ -29,7 +29,7 @@ Run the create command:
 
 ```bash
 kb create <name> \
-  --vault-path "~/obsidian-vault/" \
+  --vault-path $HOME/obsidian-vault/ \
   --topic "<Research Topic>"
 ```
 
@@ -49,13 +49,13 @@ For each source, call the appropriate `kb add` command:
 **For ePub books:**
 ```bash
 kb add <name> --epub "/path/to/book.epub" \
-  --vault-path "~/obsidian-vault/"
+  --vault-path $HOME/obsidian-vault/
 ```
 
 **For YouTube videos:**
 ```bash
 kb add <name> --youtube "https://youtube.com/watch?v=..." \
-  --vault-path "~/obsidian-vault/"
+  --vault-path $HOME/obsidian-vault/
 ```
 
 ### 4. Explain the Structure

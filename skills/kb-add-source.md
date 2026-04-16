@@ -13,7 +13,7 @@ This skill provides a conversational interface for adding source materials (book
 
 - At least one knowledge base already created
 - The `kb` CLI tool installed
-- Obsidian vault at: `/Users/satyasheel/Insync/satyasheel@ymail.com/Dropbox/obsidian-satya/`
+- Obsidian vault at: `~/obsidian-vault/`
 
 ## Workflow
 
@@ -37,7 +37,7 @@ Based on type, ask for:
 
 **For ePub:**
 - Full path to the .epub file
-- Example: `/Users/satyasheel/Downloads/book.epub`
+- Example: `~/Downloads/book.epub`
 
 **For YouTube:**
 - Full YouTube URL
@@ -50,13 +50,13 @@ Run the appropriate command:
 **For ePub books:**
 ```bash
 kb add <kb_name> --epub "<path_to_epub>" \
-  --vault-path "/Users/satyasheel/Insync/satyasheel@ymail.com/Dropbox/obsidian-satya/"
+  --vault-path $HOME/obsidian-vault/
 ```
 
 **For YouTube videos:**
 ```bash
 kb add <kb_name> --youtube "<video_url>" \
-  --vault-path "/Users/satyasheel/Insync/satyasheel@ymail.com/Dropbox/obsidian-satya/"
+  --vault-path $HOME/obsidian-vault/
 ```
 
 ### 5. Confirm What Was Added
@@ -82,7 +82,7 @@ If no:
 ```
 User: "Add this book to my ML knowledge base"
 Assistant: "What's the path to the .epub file?"
-User: "/Users/satyasheel/Downloads/deep-learning.epub"
+User: "~/Downloads/deep-learning.epub"
 Assistant: [runs kb add command]
 ✓ Added book: Deep Learning by Ian Goodfellow
   Location: raw/books/deep-learning-ian-goodfellow.md

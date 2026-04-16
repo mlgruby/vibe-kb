@@ -31,7 +31,7 @@ Use the search command to find relevant content:
 
 ```bash
 kb search <kb_name> "<key_terms_from_question>" \
-  --vault-path "~/obsidian-vault/"
+  --vault-path $HOME/obsidian-vault/
 ```
 
 **B. Check indices**

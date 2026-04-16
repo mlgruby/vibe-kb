@@ -23,7 +23,7 @@ Ask which KB to compile, then scan for new sources:
 
 ```bash
 # List raw sources that haven't been compiled yet
-ls -la "/Users/satyasheel/Insync/satyasheel@ymail.com/Dropbox/obsidian-satya/knowledge-bases/<kb_name>/raw/"
+ls -la $HOME/obsidian-vault/knowledge-bases/<kb_name>/raw/
 ```
 
 Check each subdirectory (books/, videos/, papers/, articles/) for unprocessed sources.
@@ -112,7 +112,7 @@ In the concept article, list sources that mention this concept in the "Sources" 
 After compiling, commit the wiki changes:
 
 ```bash
-cd "/Users/satyasheel/Insync/satyasheel@ymail.com/Dropbox/obsidian-satya/knowledge-bases/<kb_name>"
+cd $HOME/obsidian-vault/knowledge-bases/<kb_name>
 git add wiki/
 git commit -m "Compile: Add <source-name> summary and concepts"
 ```
