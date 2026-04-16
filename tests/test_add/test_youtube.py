@@ -374,3 +374,46 @@ def test_cli_add_youtube_rejects_non_youtube_https(tmp_path):
 
     assert result.exit_code != 0
     assert "invalid" in result.output.lower()
+
+
+def test_cli_add_youtube_duplicate_preserves_existing(tmp_path):
+    """Duplicate add must not delete the pre-existing source or metadata."""
+    from unittest.mock import patch, MagicMock
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["create", "test-kb", "--vault-path", str(tmp_path)])
+    assert result.exit_code == 0
+
+    kb_dir = tmp_path / "knowledge-bases" / "test-kb"
+    videos_dir = kb_dir / "raw" / "videos"
+    videos_dir.mkdir(parents=True, exist_ok=True)
+
+    # Pre-plant an existing source with the same title/date
+    from datetime import date
+    existing_filename = f"{date.today().isoformat()}-existing-video.md"
+    existing_md = videos_dir / existing_filename
+    existing_meta = videos_dir / existing_filename.replace(".md", ".meta.json")
+    existing_md.write_text("ORIGINAL CONTENT", encoding="utf-8")
+    existing_meta.write_text('{"title": "Existing Video"}', encoding="utf-8")
+
+    mock_result = {
+        'title': 'Existing Video',
+        'channel': 'Test Channel',
+        'duration': 300,
+        'url': 'https://youtube.com/watch?v=test',
+    }
+
+    with patch('vibe_kb.cli.extract_youtube_transcript', return_value=mock_result):
+        result = runner.invoke(cli, [
+            "add", "test-kb",
+            "--youtube", "https://youtube.com/watch?v=test",
+            "--vault-path", str(tmp_path)
+        ])
+
+    assert result.exit_code != 0
+    assert "already exists" in result.output
+
+    # Original files must be intact
+    assert existing_md.exists(), "Pre-existing markdown was deleted"
+    assert existing_md.read_text(encoding="utf-8") == "ORIGINAL CONTENT"
+    assert existing_meta.exists(), "Pre-existing metadata was deleted"

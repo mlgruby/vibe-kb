@@ -98,3 +98,28 @@ def test_kb_create_already_exists(tmp_path):
     result2 = runner.invoke(cli, ["create", "test-kb", "--vault-path", str(tmp_path)])
     assert result2.exit_code != 0
     assert "already exists" in result2.output
+
+
+def test_create_rejects_path_traversal_name(tmp_path):
+    """KB names with path separators must be rejected."""
+    runner = CliRunner()
+    for bad_name in ["../other", "a/b", "/absolute", "a..b", "."]:
+        result = runner.invoke(cli, ["create", bad_name, "--vault-path", str(tmp_path)])
+        assert result.exit_code != 0, f"Should have rejected name: {bad_name!r}"
+        assert "invalid" in result.output.lower(), f"No error message for: {bad_name!r}"
+
+
+def test_search_rejects_path_traversal_name(tmp_path):
+    """search must reject KB names with path separators."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["search", "../escape", "query", "--vault-path", str(tmp_path)])
+    assert result.exit_code != 0
+    assert "invalid" in result.output.lower()
+
+
+def test_stats_rejects_path_traversal_name(tmp_path):
+    """stats must reject KB names with path separators."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["stats", "../escape", "--vault-path", str(tmp_path)])
+    assert result.exit_code != 0
+    assert "invalid" in result.output.lower()

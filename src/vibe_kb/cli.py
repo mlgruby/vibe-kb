@@ -1,5 +1,6 @@
 """CLI entry point for kb command."""
 import click
+import re
 import tempfile
 from pathlib import Path
 from typing import Optional
@@ -8,6 +9,26 @@ from .add.epub import extract_epub_to_markdown, get_epub_metadata
 from .add.youtube import extract_youtube_transcript
 from .utils.files import generate_filename, create_metadata
 from .search import search_wiki
+
+_KB_NAME_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_-]*$')
+
+
+def _validate_kb_name(name: str) -> None:
+    """Validate KB name to prevent path traversal outside the vault namespace.
+
+    Args:
+        name: Knowledge base name to validate
+
+    Raises:
+        click.Abort: If name is invalid
+    """
+    if not _KB_NAME_RE.match(name):
+        click.echo(
+            f"Error: Invalid knowledge base name '{name}'. "
+            "Names must start with a letter or digit and contain only "
+            "letters, digits, hyphens, and underscores."
+        )
+        raise click.Abort()
 
 
 @click.group()
@@ -27,6 +48,8 @@ def cli():
 @click.option("--topic", help="Research topic")
 def create(name: str, vault_path: Path, topic: str):
     """Create a new knowledge base."""
+    _validate_kb_name(name)
+
     if not vault_path:
         vault_path = Path.home() / "obsidian-vault"  # Fallback
 
@@ -140,6 +163,8 @@ Things to explore further
 )
 def add(kb_name: str, epub_path: Optional[Path], youtube_url: Optional[str], vault_path: Optional[Path]):
     """Add source material to knowledge base."""
+    _validate_kb_name(kb_name)
+
     if not vault_path:
         vault_path = Path.home() / "obsidian-vault"
 
@@ -220,9 +245,11 @@ def _add_youtube(kb_dir: Path, url: str):
 
     temp_path = None
     output_path = None
+    output_created_by_us = False  # track whether we created output_path
 
     try:
-        # Create temp file
+        # Generate filename from URL metadata first to check for duplicates
+        # before doing any network extraction
         with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as tmp:
             temp_path = Path(tmp.name)
 
@@ -237,12 +264,13 @@ def _add_youtube(kb_dir: Path, url: str):
         if output_path.exists():
             click.echo(f"Error: Source already exists at {output_path}")
             click.echo("Use --force to overwrite.")
-            raise ValueError(f"Source already exists: {output_path}")
+            raise click.Abort()
 
-        # Move temp file to final location
+        # Move temp file to final location (we now own output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         temp_path.rename(output_path)
-        temp_path = None  # Successfully moved, don't clean up
+        temp_path = None           # successfully moved, don't delete
+        output_created_by_us = True  # we created it — safe to clean on failure
 
         # Create metadata
         meta_path = output_path.with_suffix('.meta.json')
@@ -259,33 +287,24 @@ def _add_youtube(kb_dir: Path, url: str):
         click.echo(f"  Channel: {result['channel']}")
         click.echo(f"  Location: {output_path}")
 
-    except ValueError as e:
-        # Clean up temp file if it still exists
+    except click.Abort:
+        # Duplicate-exists abort: only clean up temp, never touch output_path
+        if temp_path and temp_path.exists():
+            temp_path.unlink()
+        raise
+    except Exception as e:
+        # Clean up temp file if still present
         if temp_path and temp_path.exists():
             temp_path.unlink()
 
-        # Clean up output file if metadata creation failed
-        if output_path and output_path.exists():
+        # Only clean up output_path if WE created it this invocation
+        if output_created_by_us and output_path and output_path.exists():
             output_path.unlink()
             meta_path = output_path.with_suffix('.meta.json')
             if meta_path.exists():
                 meta_path.unlink()
 
         click.echo(f"Error: {str(e)}")
-        raise click.Abort()
-    except Exception as e:
-        # Clean up temp file if it still exists
-        if temp_path and temp_path.exists():
-            temp_path.unlink()
-
-        # Clean up output file if metadata creation failed
-        if output_path and output_path.exists():
-            output_path.unlink()
-            meta_path = output_path.with_suffix('.meta.json')
-            if meta_path.exists():
-                meta_path.unlink()
-
-        click.echo(f"Error: Unexpected error occurred: {str(e)}")
         raise click.Abort()
 
 
@@ -296,6 +315,8 @@ def _add_youtube(kb_dir: Path, url: str):
 @click.option("--case-sensitive", is_flag=True, help="Case-sensitive search")
 def search(kb_name: str, query: str, vault_path: Optional[Path], case_sensitive: bool):
     """Search wiki for query string."""
+    _validate_kb_name(kb_name)
+
     if not vault_path:
         vault_path = Path.home() / "obsidian-vault"
 
@@ -373,6 +394,8 @@ def stats(kb_name: str, vault_path: Optional[Path]):
         kb_name: Name of the knowledge base
         vault_path: Optional vault path (defaults to ~/obsidian-vault)
     """
+    _validate_kb_name(kb_name)
+
     if not vault_path:
         vault_path = Path.home() / "obsidian-vault"
 
