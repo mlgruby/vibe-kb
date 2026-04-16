@@ -48,7 +48,7 @@ def cli():
     help="Obsidian vault path (default: ~/obsidian-vault)",
 )
 @click.option("--topic", help="Research topic")
-def create(name: str, vault_path: Path, topic: str):
+def create(name: str, vault_path: Optional[Path], topic: str):
     """Create a new knowledge base."""
     _validate_kb_name(name)
 
@@ -244,10 +244,13 @@ def _add_epub(kb_dir: Path, epub_path: Path):
             chapter_count=result["chapter_count"],
         )
     except Exception as e:
-        # Roll back the markdown file if we created it but metadata failed,
+        # Roll back both the markdown file and any partial .meta.json
         # so a retry is not blocked by the "already exists" guard.
         if output_created and output_path.exists():
             output_path.unlink()
+            meta_path = output_path.with_suffix(".meta.json")
+            if meta_path.exists():
+                meta_path.unlink()
         click.echo(f"Error: {str(e)}")
         raise click.Abort()
 

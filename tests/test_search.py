@@ -328,12 +328,16 @@ def test_search_wiki_excludes_templates_directory(tmp_path):
 
     # Create a real article
     (wiki_dir / "concepts").mkdir()
-    (wiki_dir / "concepts" / "transformers.md").write_text("Transformers use attention mechanisms.")
+    (wiki_dir / "concepts" / "transformers.md").write_text(
+        "Transformers use attention mechanisms.", encoding="utf-8"
+    )
 
     # Create a template (should be excluded)
     templates_dir = wiki_dir / ".templates"
     templates_dir.mkdir()
-    (templates_dir / "concept-article.md").write_text("Transformers template placeholder.")
+    (templates_dir / "concept-article.md").write_text(
+        "Transformers template placeholder.", encoding="utf-8"
+    )
 
     results = search_wiki(wiki_dir, "transformers")
 

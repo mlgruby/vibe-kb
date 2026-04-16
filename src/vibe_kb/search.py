@@ -65,7 +65,7 @@ def search_wiki(wiki_dir: Path, query: str, case_sensitive: bool = False) -> Lis
             if pattern.search(line):
                 results.append(
                     {
-                        "file": str(md_file.relative_to(wiki_dir)),
+                        "file": md_file.relative_to(wiki_dir).as_posix(),
                         "line": line_num,
                         "match": line.strip(),
                     }

@@ -396,10 +396,14 @@ def test_cli_add_youtube_duplicate_preserves_existing(tmp_path):
     videos_dir = kb_dir / "raw" / "videos"
     videos_dir.mkdir(parents=True, exist_ok=True)
 
-    # Pre-plant an existing source with the same title/date
+    # Freeze date so the pre-planted filename matches what generate_filename()
+    # produces inside the CLI. Without this, a midnight boundary between the
+    # two date.today() calls causes the duplicate check to miss and the test
+    # to fail spuriously.
     from datetime import date
 
-    existing_filename = f"{date.today().isoformat()}-existing-video.md"
+    frozen_date = date(2026, 1, 15)
+    existing_filename = f"{frozen_date.isoformat()}-existing-video.md"
     existing_md = videos_dir / existing_filename
     existing_meta = videos_dir / existing_filename.replace(".md", ".meta.json")
     existing_md.write_text("ORIGINAL CONTENT", encoding="utf-8")
@@ -412,18 +416,20 @@ def test_cli_add_youtube_duplicate_preserves_existing(tmp_path):
         "url": "https://youtube.com/watch?v=test",
     }
 
-    with patch("vibe_kb.cli.extract_youtube_transcript", return_value=mock_result):
-        result = runner.invoke(
-            cli,
-            [
-                "add",
-                "test-kb",
-                "--youtube",
-                "https://youtube.com/watch?v=test",
-                "--vault-path",
-                str(tmp_path),
-            ],
-        )
+    with patch("vibe_kb.utils.files.date") as mock_date:
+        mock_date.today.return_value = frozen_date
+        with patch("vibe_kb.cli.extract_youtube_transcript", return_value=mock_result):
+            result = runner.invoke(
+                cli,
+                [
+                    "add",
+                    "test-kb",
+                    "--youtube",
+                    "https://youtube.com/watch?v=test",
+                    "--vault-path",
+                    str(tmp_path),
+                ],
+            )
 
     assert result.exit_code != 0
     assert "already exists" in result.output

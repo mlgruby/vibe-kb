@@ -11,6 +11,7 @@ import re
 import tempfile
 from datetime import date
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from hypothesis import HealthCheck, given, assume, settings
@@ -20,6 +21,12 @@ from vibe_kb.utils.files import generate_filename
 from vibe_kb.add.youtube import _parse_vtt
 from vibe_kb.cli import _validate_kb_name, _KB_NAME_RE
 from vibe_kb.search import search_wiki
+
+# Freeze date for all generate_filename property tests to avoid midnight-boundary
+# flakes where date.today() in the test body differs from the one called inside
+# generate_filename() when the test suite runs across midnight.
+_FROZEN_DATE = date(2026, 1, 15)
+_FROZEN_ISO = _FROZEN_DATE.isoformat()  # "2026-01-15"
 
 
 # ---------------------------------------------------------------------------
@@ -37,10 +44,12 @@ _titles_with_alnum = st.text(
 @given(_titles_with_alnum)
 @settings(max_examples=300)
 def test_generate_filename_always_starts_with_today(title):
-    """Output must always begin with today's ISO date."""
-    result = generate_filename(title)
-    assert result.startswith(date.today().isoformat()), (
-        f"filename {result!r} does not start with today's date for title {title!r}"
+    """Output must always begin with a YYYY-MM-DD date prefix."""
+    with patch("vibe_kb.utils.files.date") as mock_date:
+        mock_date.today.return_value = _FROZEN_DATE
+        result = generate_filename(title)
+    assert result.startswith(_FROZEN_ISO), (
+        f"filename {result!r} does not start with frozen date for title {title!r}"
     )
 
 
@@ -48,7 +57,9 @@ def test_generate_filename_always_starts_with_today(title):
 @settings(max_examples=300)
 def test_generate_filename_never_contains_path_separator(title):
     """Output must never contain / or \\ regardless of title content."""
-    result = generate_filename(title)
+    with patch("vibe_kb.utils.files.date") as mock_date:
+        mock_date.today.return_value = _FROZEN_DATE
+        result = generate_filename(title)
     assert "/" not in result, f"/ in filename {result!r} for title {title!r}"
     assert "\\" not in result, f"\\ in filename {result!r} for title {title!r}"
 
@@ -57,7 +68,9 @@ def test_generate_filename_never_contains_path_separator(title):
 @settings(max_examples=300)
 def test_generate_filename_always_ends_with_md(title):
     """Default extension must always be .md."""
-    result = generate_filename(title)
+    with patch("vibe_kb.utils.files.date") as mock_date:
+        mock_date.today.return_value = _FROZEN_DATE
+        result = generate_filename(title)
     assert result.endswith(".md"), f"filename {result!r} does not end with .md"
 
 
@@ -65,9 +78,11 @@ def test_generate_filename_always_ends_with_md(title):
 @settings(max_examples=300)
 def test_generate_filename_slug_only_safe_chars(title):
     """The slug portion must contain only [a-z0-9-]."""
-    result = generate_filename(title)
-    # Strip date prefix (YYYY-MM-DD-) and .md suffix to get slug
-    slug = result[len(date.today().isoformat()) + 1 : -len(".md")]
+    with patch("vibe_kb.utils.files.date") as mock_date:
+        mock_date.today.return_value = _FROZEN_DATE
+        result = generate_filename(title)
+    # Strip frozen date prefix and .md suffix to get slug
+    slug = result[len(_FROZEN_ISO) + 1 : -len(".md")]
     assert re.fullmatch(r"[a-z0-9-]+", slug), (
         f"slug {slug!r} contains unsafe characters for title {title!r}"
     )
