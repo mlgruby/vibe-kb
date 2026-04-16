@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 try:
     import ebooklib
     from ebooklib import epub
+
     EPUB_SUPPORT = True
 except ImportError:
     EPUB_SUPPORT = False

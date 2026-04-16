@@ -335,7 +335,10 @@ def test_extract_epub_to_chapters_creates_directory_structure(tmp_path):
         ("Coding Attention Mechanisms", "This explains attention."),
     ]
     create_minimal_epub(
-        epub_path, title="Build a Large Language Model", author="Sebastian Raschka", chapters=chapters
+        epub_path,
+        title="Build a Large Language Model",
+        author="Sebastian Raschka",
+        chapters=chapters,
     )
 
     result = extract_epub_to_chapters(epub_path, output_dir)
@@ -358,7 +361,9 @@ def test_extract_epub_to_chapters_creates_directory_structure(tmp_path):
     assert "# Build a Large Language Model" in index_content
     assert "**Author:** Sebastian Raschka" in index_content
     assert "[[chapter-01-introduction-to-llms|Chapter 1: Introduction to LLMs]]" in index_content
-    assert "[[chapter-02-working-with-text-data|Chapter 2: Working with Text Data]]" in index_content
+    assert (
+        "[[chapter-02-working-with-text-data|Chapter 2: Working with Text Data]]" in index_content
+    )
 
     # Check chapter file content
     chapter1_content = (output_dir / "chapter-01-introduction-to-llms.md").read_text()
@@ -376,10 +381,7 @@ def test_extract_epub_to_chapters_creates_robust_index_with_frontmatter(tmp_path
         ("Backpropagation", "How backprop works."),
     ]
     create_minimal_epub(
-        epub_path,
-        title="Deep Learning",
-        author="Ian Goodfellow",
-        chapters=chapters
+        epub_path, title="Deep Learning", author="Ian Goodfellow", chapters=chapters
     )
 
     extract_epub_to_chapters(epub_path, output_dir)
@@ -399,7 +401,9 @@ def test_extract_epub_to_chapters_creates_robust_index_with_frontmatter(tmp_path
     assert "## Table of Contents" in index_content
 
     # Check wikilinks format
-    assert "[[chapter-01-neural-networks-basics|Chapter 1: Neural Networks Basics]]" in index_content
+    assert (
+        "[[chapter-01-neural-networks-basics|Chapter 1: Neural Networks Basics]]" in index_content
+    )
     assert "[[chapter-02-backpropagation|Chapter 2: Backpropagation]]" in index_content
 
 
@@ -453,7 +457,15 @@ def test_cli_add_epub_with_split_chapters(tmp_path):
     # Add ePub with --split-chapters flag
     result = runner.invoke(
         cli,
-        ["add", "test-kb", "--epub", str(epub_path), "--split-chapters", "--vault-path", str(tmp_path)],
+        [
+            "add",
+            "test-kb",
+            "--epub",
+            str(epub_path),
+            "--split-chapters",
+            "--vault-path",
+            str(tmp_path),
+        ],
     )
 
     assert result.exit_code == 0

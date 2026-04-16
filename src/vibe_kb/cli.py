@@ -264,6 +264,7 @@ def _add_epub(kb_dir: Path, epub_path: Path, split_chapters: bool = False):
             # Roll back the entire directory on failure
             if output_dir.exists():
                 import shutil
+
                 shutil.rmtree(output_dir)
             click.echo(f"Error: {str(e)}")
             raise click.Abort()

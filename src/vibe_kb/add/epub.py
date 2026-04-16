@@ -87,7 +87,11 @@ def extract_epub_to_markdown(epub_path: Path, output_path: Path) -> Dict[str, An
                     # Try to find matching image in our extracted images
                     local_filename = None
                     for original_path, filename in image_map.items():
-                        if src in original_path or original_path in src or Path(src).name == Path(original_path).name:
+                        if (
+                            src in original_path
+                            or original_path in src
+                            or Path(src).name == Path(original_path).name
+                        ):
                             local_filename = filename
                             break
 
@@ -183,7 +187,11 @@ def extract_epub_to_chapters(epub_path: Path, output_dir: Path) -> Dict[str, Any
 
                     local_filename = None
                     for original_path, filename in image_map.items():
-                        if src in original_path or original_path in src or Path(src).name == Path(original_path).name:
+                        if (
+                            src in original_path
+                            or original_path in src
+                            or Path(src).name == Path(original_path).name
+                        ):
                             local_filename = filename
                             break
 
@@ -252,7 +260,9 @@ def extract_epub_to_chapters(epub_path: Path, output_dir: Path) -> Dict[str, Any
 
     for cf in chapter_files:
         chapter_slug = cf["filename"].replace(".md", "")
-        index_markdown += f"{cf['number']}. [[{chapter_slug}|Chapter {cf['number']}: {cf['title']}]]\n"
+        index_markdown += (
+            f"{cf['number']}. [[{chapter_slug}|Chapter {cf['number']}: {cf['title']}]]\n"
+        )
 
     index_path.write_text(index_markdown, encoding="utf-8")
 
