@@ -43,6 +43,7 @@ def extract_images_from_html(html_file: Path, images_dir: Path, base_url: str = 
 
     images = []
     downloaded = 0
+    used_filenames = set()  # Track used filenames to avoid collisions
 
     for img_tag in soup.find_all("img"):
         src = img_tag.get("src")
@@ -69,10 +70,23 @@ def extract_images_from_html(html_file: Path, images_dir: Path, base_url: str = 
 
         # Generate filename from URL
         parsed = urlparse(img_url)
-        filename = Path(parsed.path).name
-        if not filename:
-            filename = f"image_{len(images)}.png"
+        base_filename = Path(parsed.path).name
+        if not base_filename:
+            base_filename = f"image_{len(images)}.png"
 
+        # Handle filename collisions by appending counter
+        filename = base_filename
+        counter = 1
+        while filename in used_filenames:
+            # Split filename into name and extension
+            name_parts = base_filename.rsplit(".", 1)
+            if len(name_parts) == 2:
+                filename = f"{name_parts[0]}_{counter}.{name_parts[1]}"
+            else:
+                filename = f"{base_filename}_{counter}"
+            counter += 1
+
+        used_filenames.add(filename)
         local_path = images_dir / filename
 
         # Download image
@@ -169,6 +183,7 @@ def extract_images_from_epub(epub_file: Path, images_dir: Path) -> Dict:
 
     images = []
     downloaded = 0
+    used_filenames = set()  # Track used filenames to avoid collisions
 
     try:
         book = epub.read_epub(str(epub_file))
@@ -178,13 +193,26 @@ def extract_images_from_epub(epub_file: Path, images_dir: Path) -> Dict:
             if item.get_type() == ebooklib.ITEM_IMAGE:
                 # Get image filename from item name
                 original_path = item.get_name()
-                filename = Path(original_path).name
+                base_filename = Path(original_path).name
 
                 # Some ePubs use paths like "OEBPS/images/fig1.png"
                 # We just want the filename part
-                if not filename:
-                    filename = f"image_{len(images)}.png"
+                if not base_filename:
+                    base_filename = f"image_{len(images)}.png"
 
+                # Handle filename collisions by appending counter
+                filename = base_filename
+                counter = 1
+                while filename in used_filenames:
+                    # Split filename into name and extension
+                    name_parts = base_filename.rsplit(".", 1)
+                    if len(name_parts) == 2:
+                        filename = f"{name_parts[0]}_{counter}.{name_parts[1]}"
+                    else:
+                        filename = f"{base_filename}_{counter}"
+                    counter += 1
+
+                used_filenames.add(filename)
                 local_path = images_dir / filename
 
                 # Save image content
