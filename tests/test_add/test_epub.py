@@ -511,9 +511,7 @@ def test_extract_epub_to_chapters_resolves_relative_image_paths(tmp_path):
     book.add_item(img2)
 
     # Add chapter in Text directory with relative image reference
-    chapter = epub.EpubHtml(
-        title="Chapter 1", file_name="OEBPS/Text/chapter1.xhtml", lang="en"
-    )
+    chapter = epub.EpubHtml(title="Chapter 1", file_name="OEBPS/Text/chapter1.xhtml", lang="en")
     # Use relative path that goes up one level then into Images
     chapter.content = """<html><body>
         <h1>Chapter 1</h1>

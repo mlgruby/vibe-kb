@@ -94,9 +94,7 @@ def extract_epub_to_markdown(epub_path: Path, output_path: Path) -> Dict[str, An
                     # Resolve relative image path to absolute ePub path
                     if src:
                         # Resolve src relative to the current document's directory
-                        resolved_path = posixpath.normpath(
-                            posixpath.join(document_dir, src)
-                        )
+                        resolved_path = posixpath.normpath(posixpath.join(document_dir, src))
 
                         # Look up the resolved path in image_map
                         if resolved_path in image_map:
@@ -204,9 +202,7 @@ def extract_epub_to_chapters(epub_path: Path, output_dir: Path) -> Dict[str, Any
                     # Resolve relative image path to absolute ePub path
                     if src:
                         # Resolve src relative to the current document's directory
-                        resolved_path = posixpath.normpath(
-                            posixpath.join(document_dir, src)
-                        )
+                        resolved_path = posixpath.normpath(posixpath.join(document_dir, src))
 
                         # Look up the resolved path in image_map
                         if resolved_path in image_map:

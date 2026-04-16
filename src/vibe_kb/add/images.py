@@ -271,7 +271,11 @@ def update_markdown_image_links(
         # Also replace original src forms (may be relative)
         if original_src != original_url:
             markdown_content = markdown_content.replace(f"]({original_src})", f"]({local_ref})")
-            markdown_content = markdown_content.replace(f'src="{original_src}"', f'src="{local_ref}"')
-            markdown_content = markdown_content.replace(f"src='{original_src}'", f"src='{local_ref}'")
+            markdown_content = markdown_content.replace(
+                f'src="{original_src}"', f'src="{local_ref}"'
+            )
+            markdown_content = markdown_content.replace(
+                f"src='{original_src}'", f"src='{local_ref}'"
+            )
 
     return markdown_content

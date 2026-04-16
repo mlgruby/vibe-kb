@@ -70,6 +70,7 @@ def test_extract_images_from_html_handles_filename_collisions(tmp_path):
 
     # Mock HTTP requests to return different content for each image
     with patch("vibe_kb.add.images.requests.get") as mock_get:
+
         def mock_response(url, timeout):
             response = Mock()
             response.raise_for_status = Mock()
@@ -84,9 +85,7 @@ def test_extract_images_from_html_handles_filename_collisions(tmp_path):
 
         mock_get.side_effect = mock_response
 
-        result = extract_images_from_html(
-            html_file, images_dir, base_url="https://example.com"
-        )
+        result = extract_images_from_html(html_file, images_dir, base_url="https://example.com")
 
     # All three images should be downloaded
     assert result["downloaded"] == 3
