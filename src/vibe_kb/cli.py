@@ -205,7 +205,7 @@ def _add_epub(kb_dir: Path, epub_path: Path):
     # Check for existing source to prevent silent overwrite
     if output_path.exists():
         click.echo(f"Error: Source already exists at {output_path}")
-        click.echo("Use --force to overwrite.")
+        click.echo("Remove the existing file first if you want to replace it.")
         raise click.Abort()
 
     # Extract to markdown with error handling
@@ -263,7 +263,7 @@ def _add_youtube(kb_dir: Path, url: str):
         # Check for existing source to prevent silent overwrite
         if output_path.exists():
             click.echo(f"Error: Source already exists at {output_path}")
-            click.echo("Use --force to overwrite.")
+            click.echo("Remove the existing file first if you want to replace it.")
             raise click.Abort()
 
         # Move temp file to final location (we now own output_path)

@@ -11,7 +11,7 @@ This skill guides you through creating a new knowledge base in your Obsidian vau
 
 ## Prerequisites
 
-- Obsidian vault at: `/Users/satyasheel/Insync/satyasheel@ymail.com/Dropbox/obsidian-satya/`
+- Obsidian vault at: `~/obsidian-vault/`
 - The `kb` CLI tool installed and available
 
 ## Workflow
@@ -29,7 +29,7 @@ Run the create command:
 
 ```bash
 kb create <name> \
-  --vault-path "/Users/satyasheel/Insync/satyasheel@ymail.com/Dropbox/obsidian-satya/" \
+  --vault-path "~/obsidian-vault/" \
   --topic "<Research Topic>"
 ```
 
@@ -41,21 +41,21 @@ The command will create:
 ### 3. Import Initial Sources (Optional)
 
 If the user has sources to add, ask for each source:
-- What type? (epub, youtube, url, file)
-- What is the path or URL?
+- What type? (epub, youtube)
+- What is the ePub path or YouTube URL?
 
 For each source, call the appropriate `kb add` command:
 
 **For ePub books:**
 ```bash
 kb add <name> --epub "/path/to/book.epub" \
-  --vault-path "/Users/satyasheel/Insync/satyasheel@ymail.com/Dropbox/obsidian-satya/"
+  --vault-path "~/obsidian-vault/"
 ```
 
 **For YouTube videos:**
 ```bash
 kb add <name> --youtube "https://youtube.com/watch?v=..." \
-  --vault-path "/Users/satyasheel/Insync/satyasheel@ymail.com/Dropbox/obsidian-satya/"
+  --vault-path "~/obsidian-vault/"
 ```
 
 ### 4. Explain the Structure
