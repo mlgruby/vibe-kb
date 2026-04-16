@@ -284,3 +284,37 @@ def test_cli_add_epub_prevents_overwrite(tmp_path):
     )
     assert result.exit_code != 0
     assert "already exists" in result.output
+
+
+def test_add_epub_rolls_back_markdown_on_metadata_failure(tmp_path):
+    """If metadata creation fails after markdown is written, the .md is removed
+    so a subsequent retry is not blocked by the 'already exists' guard."""
+    from unittest.mock import patch
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["create", "test-kb", "--vault-path", str(tmp_path)])
+    assert result.exit_code == 0
+
+    epub_path = tmp_path / "book.epub"
+    create_minimal_epub(epub_path, title="Rollback Test Book", author="Author")
+
+    # Simulate create_metadata raising (e.g. disk-full / permission error)
+    with patch("vibe_kb.cli.create_metadata", side_effect=OSError("disk full")):
+        result = runner.invoke(
+            cli, ["add", "test-kb", "--epub", str(epub_path), "--vault-path", str(tmp_path)]
+        )
+
+    assert result.exit_code != 0
+    assert "disk full" in result.output
+
+    # The markdown file must NOT remain — orphaned .md would block a retry
+    books_dir = tmp_path / "knowledge-bases" / "test-kb" / "raw" / "books"
+    orphaned_md = list(books_dir.glob("*.md"))
+    assert len(orphaned_md) == 0, f"Orphaned markdown left behind: {orphaned_md}"
+
+    # Retry must now succeed without hitting the 'already exists' guard
+    result = runner.invoke(
+        cli, ["add", "test-kb", "--epub", str(epub_path), "--vault-path", str(tmp_path)]
+    )
+    assert result.exit_code == 0
+    assert "Added book" in result.output

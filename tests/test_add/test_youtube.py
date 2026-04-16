@@ -432,3 +432,35 @@ def test_cli_add_youtube_duplicate_preserves_existing(tmp_path):
     assert existing_md.exists(), "Pre-existing markdown was deleted"
     assert existing_md.read_text(encoding="utf-8") == "ORIGINAL CONTENT"
     assert existing_meta.exists(), "Pre-existing metadata was deleted"
+
+
+def test_parse_vtt_empty_returns_empty_string():
+    """VTT with only headers/timestamps and no caption text parses to empty string."""
+    vtt_header_only = "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\n\n00:00:03.000 --> 00:00:04.000\n"
+    result = _parse_vtt(vtt_header_only)
+    assert result.strip() == ""
+
+
+def test_extract_youtube_raises_for_empty_transcript(tmp_path):
+    """extract_youtube_transcript must raise ValueError when parsed transcript is empty."""
+    from unittest.mock import patch, MagicMock
+
+    mock_ydl = MagicMock()
+    mock_ydl.extract_info.return_value = {
+        "title": "Music Video",
+        "channel": "Artist",
+        "duration": 200,
+        "upload_date": "20240101",
+        "description": "A music video",
+        "subtitles": {"en": [{"url": "http://example.com/sub.vtt"}]},
+        "automatic_captions": {},
+    }
+    # Subtitle file contains only timestamps — parses to empty transcript
+    mock_ydl.urlopen.return_value.read.return_value = (
+        b"WEBVTT\n\n00:00:01.000 --> 00:00:02.000\n\n00:00:03.000 --> 00:00:04.000\n"
+    )
+
+    with patch("vibe_kb.add.youtube.yt_dlp.YoutubeDL") as mock_ytdl:
+        mock_ytdl.return_value.__enter__.return_value = mock_ydl
+        with pytest.raises(ValueError, match="no usable transcript"):
+            extract_youtube_transcript("https://youtube.com/watch?v=music", tmp_path / "out.md")

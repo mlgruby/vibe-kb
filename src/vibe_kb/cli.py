@@ -188,48 +188,60 @@ def add(
 
 
 def _add_epub(kb_dir: Path, epub_path: Path):
-    """Add ePub book to knowledge base."""
-    # CRITICAL FIX #4: Validate file extension
+    """Add ePub book to knowledge base.
+
+    Transactional guarantee: if metadata creation fails after the markdown
+    has been written (e.g. disk-full, permission error), the partially-written
+    .md file is removed so a subsequent retry can succeed cleanly.
+    Without this cleanup the existing-source guard would block the retry,
+    leaving the KB in a broken state requiring manual file deletion.
+
+    Note (TOCTOU): there is a theoretical time-of-check/time-of-use race
+    between the exists() check and the write — a second concurrent process
+    could create the same destination file in the milliseconds between them.
+    For a personal single-user CLI this risk is negligible and not mitigated.
+    """
     if epub_path.suffix.lower() != ".epub":
         click.echo(f"Error: '{epub_path.name}' is not an .epub file")
         raise click.Abort()
 
     click.echo(f"Processing ePub: {epub_path.name}")
 
-    # Get metadata with error handling
     try:
         metadata = get_epub_metadata(epub_path)
     except ValueError as e:
         click.echo(f"Error: {str(e)}")
         raise click.Abort()
 
-    # Generate filename
     filename = generate_filename(metadata["title"])
     output_path = kb_dir / "raw" / "books" / filename
 
-    # Check for existing source to prevent silent overwrite
     if output_path.exists():
         click.echo(f"Error: Source already exists at {output_path}")
         click.echo("Remove the existing file first if you want to replace it.")
         raise click.Abort()
 
-    # Extract to markdown with error handling
+    output_created = False
     try:
         result = extract_epub_to_markdown(epub_path, output_path)
-    except ValueError as e:
+        output_created = True  # markdown written — track for cleanup on failure
+
+        meta_path = output_path.with_suffix(".meta.json")
+        create_metadata(
+            meta_path,
+            source_url=str(epub_path),
+            source_type="book",
+            title=metadata["title"],
+            author=metadata["author"],
+            chapter_count=result["chapter_count"],
+        )
+    except Exception as e:
+        # Roll back the markdown file if we created it but metadata failed,
+        # so a retry is not blocked by the "already exists" guard.
+        if output_created and output_path.exists():
+            output_path.unlink()
         click.echo(f"Error: {str(e)}")
         raise click.Abort()
-
-    # Create metadata file
-    meta_path = output_path.with_suffix(".meta.json")
-    create_metadata(
-        meta_path,
-        source_url=str(epub_path),
-        source_type="book",
-        title=metadata["title"],
-        author=metadata["author"],
-        chapter_count=result["chapter_count"],
-    )
 
     click.echo(f"✓ Added book: {metadata['title']}")
     click.echo(f"  Location: {output_path}")

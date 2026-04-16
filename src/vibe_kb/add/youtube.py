@@ -50,8 +50,19 @@ def extract_youtube_transcript(url: str, output_path: Path) -> Dict[str, Any]:
             subtitle_url = subtitles[0]["url"]
             subtitle_content = ydl.urlopen(subtitle_url).read().decode("utf-8")
 
-            # Parse VTT format
+            # Parse VTT format.
+            # _parse_vtt() returns "" when the subtitle file contains only
+            # timestamps/headers and no caption text — common for music videos,
+            # non-English content with attempted English auto-captions, or videos
+            # where auto-captions produced only noise lines. Without this guard
+            # the source would be written with an empty "## Transcript" section,
+            # silently degrading downstream compile and research steps.
             transcript = _parse_vtt(subtitle_content)
+            if not transcript.strip():
+                raise ValueError(
+                    "Subtitle file was found but contained no usable transcript text. "
+                    "The video may have only music, non-English speech, or malformed captions."
+                )
 
             # Write markdown
             markdown = f"# {title}\n\n"
