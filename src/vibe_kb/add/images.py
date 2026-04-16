@@ -1,4 +1,5 @@
 """Image extraction from HTML and PDF sources."""
+
 import re
 from pathlib import Path
 from typing import Dict, List
@@ -133,7 +134,9 @@ def extract_images_from_pdf(pdf_file: Path, images_dir: Path) -> Dict:
     return {"images": images, "downloaded": downloaded}
 
 
-def update_markdown_image_links(markdown_content: str, images: List[Dict], images_dir_relative: str) -> str:
+def update_markdown_image_links(
+    markdown_content: str, images: List[Dict], images_dir_relative: str
+) -> str:
     """Update markdown image links to point to local files.
 
     Args:

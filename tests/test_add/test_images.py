@@ -1,5 +1,5 @@
 """Tests for image extraction from various sources."""
-from pathlib import Path
+
 from unittest.mock import Mock, patch
 from vibe_kb.add.images import extract_images_from_html, extract_images_from_pdf
 
